@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -18,12 +18,10 @@ my $DBObject     = $Kernel::OM->Get('DB');
 my $XMLObject    = $Kernel::OM->Get('XML');
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 my $Data         = $ConfigObject->Get('Organisation');
 my $DefaultValue = $Data->{Params}->{Table};
@@ -179,7 +177,8 @@ for my $Key ( 1 .. 3, 'ä', 'カス' ) {
     if ( $Key eq '1' ) {
         # delete the first organisation
         my $Success = $OrganisationObject->OrganisationDelete(
-            ID => $OrganisationID,
+            ID     => $OrganisationID,
+            UserID => 1,
         );
 
         $Self->True(
@@ -189,40 +188,67 @@ for my $Key ( 1 .. 3, 'ä', 'カス' ) {
     }
 }
 
-my %OrganisationSearch = $OrganisationObject->OrganisationSearch( Valid => 0 );
-my $OrgList = %OrganisationSearch ? 1 : 0;
+my $OrganisationSearch = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Organisation',
+    Result     => 'COUNT',
+    UserID     => 1,
+    UserType   => 'Agent'
+);
 
 # check OrganisationSearch with Valid=>0
 $Self->True(
-    $OrgList,
+    $OrganisationSearch ? 1 : 0,
     "OrganisationSearch() with Valid=>0",
 );
 
-%OrganisationSearch = $OrganisationObject->OrganisationSearch(
-    Search => 'Example',
-    Valid  => 0,
+$OrganisationSearch = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Organisation',
+    Result     => 'COUNT',
+    Search     => {
+        AND => [
+            {
+                Field => 'Fulltext',
+                Operator => 'STARTSWITH',
+                Type     => 'STRING',
+                Value    => 'Example'
+            }
+        ]
+    },
+    UserID     => 1,
+    UserType   => 'Agent'
 );
 
 $Self->True(
-    scalar keys %OrganisationSearch,
+    $OrganisationSearch ? 1 : 0,
     "OrganisationSearch() with Search",
 );
 
-%OrganisationSearch = $OrganisationObject->OrganisationSearch(
-    Search => 'Foo-123FALSE-Example*',
-    Valid  => 0,
+$OrganisationSearch = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Organisation',
+    Result     => 'COUNT',
+    Search     => {
+        AND => [
+            {
+                Field => 'Fulltext',
+                Operator => 'STARTSWITH',
+                Type     => 'STRING',
+                Value    => 'Foo-123FALSE-Example'
+            }
+        ]
+    },
+    UserID     => 1,
+    UserType   => 'Agent'
 );
 
 $Self->False(
-    scalar keys %OrganisationSearch,
+    $OrganisationSearch ? 1 : 0,
     "OrganisationSearch() with Search",
 );
 
-# cleanup is done by RestoreDatabase
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
-
-
 
 =back
 

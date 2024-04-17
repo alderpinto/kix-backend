@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -17,10 +17,11 @@ use Kernel::System::VariableCheck qw(:all);
 
 use vars qw(@ISA);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
 );
 
 =head1 NAME
@@ -363,7 +364,7 @@ sub WatcherAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Watcher',
         ObjectID  => $Param{Object}.'::'.$Param{ObjectID}.'::'.$Param{WatchUserID},
@@ -418,8 +419,8 @@ sub WatcherDelete {
 
     if ( $Param{AllUsers} ) {
         my @Watchers = $Self->WatcherList(
-            Object => $Param{Object},
-            ObjectID   => $Param{ObjectID},
+            Object   => $Param{Object},
+            ObjectID => $Param{ObjectID},
         );
 
         return if !$Kernel::OM->Get('DB')->Do(
@@ -432,18 +433,20 @@ sub WatcherDelete {
             Type => $Self->{CacheType}
         );
 
-        foreach my $WatchUserID (@Watchers) {
+        foreach my $Watcher (@Watchers) {
+
+            my $WatchUserID = $Watcher->{WatchUserID} || $Watcher->{UserID};
 
             # check if we have a backend for this object type and execute it
             if ( $Self->{Backends}->{$Param{Object}} ) {
                 my$BackendResult = $Self->{Backends}->{$Param{Object}}->WatcherDelete(
                     %Param,
-                    WatchUserID => $WatchUserID
+                    WatchUserID => $WatchUserID,
                 );
             }
 
             # push client callback event
-            $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+            $Kernel::OM->Get('ClientNotification')->NotifyClients(
                 Event     => 'DELETE',
                 Namespace => 'Watcher',
                 ObjectID  => $Param{Object}.'::'.$Param{ObjectID}.'::'.$WatchUserID,
@@ -474,7 +477,7 @@ sub WatcherDelete {
         }
 
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'DELETE',
             Namespace => 'Watcher',
             ObjectID  => $WatcherData{Object}.'::'.$WatcherData{ObjectID}.'::'.$WatcherData{WatchUserID},
@@ -499,7 +502,7 @@ sub WatcherDelete {
         }
 
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'DELETE',
             Namespace => 'Watcher',
             ObjectID  => $Param{Object}.'::'.$Param{ObjectID}.'::'.$Param{WatchUserID},
@@ -572,12 +575,12 @@ sub WatcherTransfer {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Watcher',
         ObjectID  => $Param{Object}.'::'.$Param{SourceObjectID},
     );
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Watcher',
         ObjectID  => $Param{Object}.'::'.$Param{TargetObjectID},

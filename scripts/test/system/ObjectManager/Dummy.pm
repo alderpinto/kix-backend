@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -8,7 +8,7 @@
 # did not receive this file, see https://www.gnu.org/licenses/agpl.txt.
 # --
 
-package scripts::test::ObjectManager::Dummy;    ## no critic
+package scripts::test::system::ObjectManager::Dummy;    ## no critic
 
 use strict;
 use warnings;
@@ -30,7 +30,7 @@ sub DESTROY {
 
     # Request this object (undeclared dependency) in the desctructor.
     #   This will create it again in the OM to test that ObjectsDiscard will still work.
-    $Kernel::OM->Get('scripts::test::ObjectManager::Dummy2');
+    $Kernel::OM->Get('scripts::test::system::ObjectManager::Dummy2');
 }
 
 1;

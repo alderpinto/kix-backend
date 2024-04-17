@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -80,10 +80,12 @@ sub ValidateConfig {
 
     # check needed stuff
     if ( !$Param{Config} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Got no Config!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Got no Config!',
+            );
+        }
         return;
     }
 
@@ -91,20 +93,24 @@ sub ValidateConfig {
 
     # validate the columns
     if ( !IsArrayRefWithData($Param{Config}->{Columns}) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Translate: Columns is not an ARRAY ref or doesn't contain any configuration!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Translate: Columns is not an ARRAY ref or doesn't contain any configuration!",
+            );
+        }
         return;
     }
 
     my $Languages = $Kernel::OM->Get('Config')->Get('DefaultUsedLanguages');
 
     if ( $Param{Config}->{Language} && !$Languages->{$Param{Config}->{Language}} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Translate: language \"$Param{Config}->{Language}\" not supported!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Translate: language \"$Param{Config}->{Language}\" not supported!",
+            );
+        }
         return;
     }
 

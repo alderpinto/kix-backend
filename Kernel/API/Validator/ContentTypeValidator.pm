@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -65,14 +65,19 @@ sub Validate {
         );
     }
 
-    my $Valid;
     if ( $Param{Attribute} eq 'ContentType' ) {
         my $ContentType = lc($Param{Data}->{$Param{Attribute}});
 
+        if ( $ContentType =~ m/\R/ ) {
+            return $Self->_Error(
+                Code    => 'Validator.Failed',
+                Message => "Validation of attribute $Param{Attribute} ($Param{Data}->{$Param{Attribute}}) failed! Line breaks are not allowed!",
+            );
+        }
+
         # check Charset part
-        my $Charset = q{};
         if ( $ContentType =~ /charset=/i ) {
-            $Charset = $ContentType;
+            my $Charset = $ContentType;
             $Charset =~ s/.+?charset=("|'|)(\w+)/$2/gi;
             $Charset =~ s/"|'//g;
             $Charset =~ s/(.+?);.*/$1/g;
@@ -86,7 +91,7 @@ sub Validate {
             if (!$Result->{Success}) {
                 return $Self->_Error(
                     Code    => 'Validator.Failed',
-                    Message => "Validation of attribute $Param{Attribute} ($Param{Data}->{$Param{Attribute}}) failed!",
+                    Message => "Validation of attribute $Param{Attribute} ($Param{Data}->{$Param{Attribute}}) failed! Invalid Charset!",
                 );
             }
         }
@@ -107,21 +112,17 @@ sub Validate {
                 MimeType => $MimeType,
             }
         );
-        if ($Result->{Success}) {
-            $Valid = 1;
+        if (!$Result->{Success}) {
+            return $Self->_Error(
+                Code    => 'Validator.Failed',
+                Message => "Validation of attribute $Param{Attribute} ($Param{Data}->{$Param{Attribute}}) failed! Invalid MimeType!",
+            );
         }
     }
     else {
         return $Self->_Error(
             Code    => 'Validator.UnknownAttribute',
             Message => "ContentTypeValidator: cannot validate attribute $Param{Attribute}!",
-        );
-    }
-
-    if ( !$Valid ) {
-        return $Self->_Error(
-            Code    => 'Validator.Failed',
-            Message => "Validation of attribute $Param{Attribute} ($Param{Data}->{$Param{Attribute}}) failed!",
         );
     }
 

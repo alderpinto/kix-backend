@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -162,10 +162,12 @@ sub ChannelLookup {
 
     # check needed stuff
     if ( !$Param{Name} && !$Param{ID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Got no Name or ID!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Got no Name or ID!',
+            );
+        }
         return;
     }
 
@@ -191,10 +193,12 @@ sub ChannelLookup {
 
     # check if data exists
     if ( !defined $ReturnData ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "No $Key for $Value found!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "No $Key for $Value found!",
+            );
+        }
         return;
     }
 

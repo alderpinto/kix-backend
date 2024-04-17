@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -14,11 +14,14 @@ use warnings;
 use Kernel::System::VariableCheck qw(:all);
 use vars qw(@ISA);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
+use base qw(Kernel::System::EventHandler);
+
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
 );
 
 =head1 NAME
@@ -55,6 +58,11 @@ sub new {
     $Self->{CacheType} = 'ObjectIcon';
     $Self->{CacheTTL}  = 60 * 60 * 24 * 30;   # 30 days
 
+    # init of event handler
+    $Self->EventHandlerInit(
+        Config => 'ObjectIcon::EventModulePost',
+    );
+
     return $Self;
 }
 
@@ -62,7 +70,7 @@ sub new {
 
 Get an objecticon.
 
-    my $Result = $ObjectIconObject->ObjectIconGet(
+    my %Result = $ObjectIconObject->ObjectIconGet(
         ID      => 123,
     );
 
@@ -200,8 +208,19 @@ sub ObjectIconAdd {
             $ID = $Row[0];
         }
 
+        # trigger event
+        $Self->EventHandler(
+            Event => 'ObjectIconAdd',
+            Data  => {
+                ID       => $ID,
+                Object   => $Param{Object},
+                ObjectID => $Param{ObjectID},
+            },
+            UserID => $Param{UserID},
+        );
+
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'CREATE',
             Namespace => 'ObjectIcon',
             ObjectID  => $ID,
@@ -266,8 +285,19 @@ sub ObjectIconUpdate {
             Type => $Self->{CacheType}
         );
 
+        # trigger event
+        $Self->EventHandler(
+            Event => 'ObjectIconUpdate',
+            Data  => {
+                ID       => $Param{ID},
+                Object   => $Param{Object},
+                ObjectID => $Param{ObjectID},
+            },
+            UserID => $Param{UserID},
+        );
+
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'UPDATE',
             Namespace => 'ObjectIcon',
             ObjectID  => $Param{ID},
@@ -374,6 +404,11 @@ sub ObjectIconDelete {
         }
     }
 
+    # get old data before delete
+    my %OldData = $Self->ObjectIconGet(
+        ID => $Param{ID},
+    );
+
     # get database object
     my $DBObject = $Kernel::OM->Get('DB');
 
@@ -387,8 +422,19 @@ sub ObjectIconDelete {
         Type => $Self->{CacheType}
     );
 
+    # trigger event
+    $Self->EventHandler(
+        Event => 'ObjectIconDelete',
+        Data  => {
+            ID       => $Param{ID},
+            Object   => $OldData{Object},
+            ObjectID => $OldData{ObjectID},
+        },
+        UserID => $Param{UserID},
+    );
+
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'ObjectIcon',
         ObjectID  => $Param{ID},
@@ -397,10 +443,16 @@ sub ObjectIconDelete {
     return 1;
 }
 
+sub DESTROY {
+    my $Self = shift;
+
+    # execute all transaction events
+    $Self->EventHandlerTransaction();
+
+    return 1;
+}
+
 1;
-
-
-
 
 =back
 

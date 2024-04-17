@@ -617,6 +617,11 @@
                "type" : "string",
                "readOnly" : true
             },
+            "NotSentError" : {
+               "description" : "error string if article is an outgoing email article which could not be sent",
+               "type" : "string",
+               "readOnly" : true
+            },
             "Plain" : {
                "description" : "added via include \"Plain\" - the source string of the message if it is an email article (channel)",
                "type" : "string",
@@ -687,6 +692,7 @@
             "IncomingTime",
             "MessageID",
             "MimeType",
+            "NotSentError",
             "References",
             "ReplyTo",
             "SenderType",
@@ -842,6 +848,7 @@
                "readOnly" : true
             },
             "LinkCount" : {
+               "description" : "added via include \"LinkCount\"",
                "type" : "integer",
                "readOnly" : true
             },
@@ -934,6 +941,7 @@
                "readOnly" : true
             },
             "Unseen" : {
+               "description" : "added via include \"Unseen\"",
                "type" : "integer",
                "readOnly" : true
             },
@@ -942,7 +950,7 @@
                "readOnly" : true
             },
             "WatcherID" : {
-               "description" : "the ID of the watcher, if the current user is watching this ticket",
+               "description" : "the ID of the watcher, if the current user is watching this ticket, added via include \"WatcherID\"",
                "type" : "integer",
                "readOnly" : true
             },

@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2019 OTRS AG, https://otrs.com/
 # --
@@ -73,7 +73,7 @@ sub Output {
             Priority => 'error',
             Message  => "Need HashRef in Param Data! Got: '" . ref( $Param{Data} ) . "'!",
         );
-        $Self->FatalError();
+        die "Need HashRef in Param Data! Got: '" . ref( $Param{Data} ) . "'!\n";
     }
 
     # fill init Env
@@ -123,24 +123,22 @@ sub Output {
 
     my $TemplateString;
 
-    if ( $Param{TemplateFile} ) {
-        $Param{TemplateFileTT} .= "$Param{TemplateFile}.tt";
+    # take templates from string/array
+    if (defined $Param{Template} && ref $Param{Template} eq 'ARRAY') {
+        $TemplateString = join('', @{$Param{Template}});
     }
-
-    if ( defined $Param{Template} && ref $Param{Template} eq 'ARRAY' ) {
-        for ( @{ $Param{Template} } ) {
-            $TemplateString .= $_;
-        }
-    } elsif ( defined $Param{Template} ) {
+    elsif (defined $Param{Template}) {
         $TemplateString = $Param{Template};
     }
-
-    if ( !$Param{TemplateFileTT} && !$TemplateString ) {
-        $Kernel::OM->Get('Log')->Log(
+    elsif ($Param{TemplateFile}) {
+        $Param{TemplateFileTT} .= "$Param{TemplateFile}.tt";
+    }
+    else {
+        $Kernel::OM->Get('Kernel::System::Log')->Log(
             Priority => 'error',
             Message  => 'Need Template or TemplateFile Param!',
         );
-        $Self->FatalError();
+        die "Need Template or TemplateFile Param!\n";
     }
 
     if ( !$Self->{TemplateObject} ) {
@@ -189,15 +187,13 @@ sub Output {
                 Priority => 'error',
                 Message  => "$Template::ERROR;",
             );
-
-            # $Self->FatalError(); # Don't use FatalError here, might cause infinite recursion
             die "$Template::ERROR\n";
         }
     }
 
     my $Output;
     my $Success = $Self->{TemplateObject}->process(
-        $TemplateString ? \$TemplateString : $Param{TemplateFileTT},
+        $Param{TemplateFileTT} // \$TemplateString,
         {
             Data => $Param{Data} // {},
             global => {
@@ -212,7 +208,7 @@ sub Output {
             Priority => 'error',
             Message  => $Self->{TemplateObject}->error(),
         );
-        $Self->FatalError();
+        die $Self->{TemplateObject}->error() . "\n";
     }
 
     # If the browser does not send the session cookie, we need to append it to all links and image urls.
@@ -255,47 +251,6 @@ sub Output {
                 $AHref.$Target.'&'.$Self->{SessionName}.'='.$Self->{SessionID}.$End;
             }
         }iegxs;
-    }
-
-    #
-    # "Post" Output filter handling
-    #
-    if ( $Self->{FilterElementPost} && ref $Self->{FilterElementPost} eq 'HASH' ) {
-
-        # extract filter list
-        my %FilterList = %{ $Self->{FilterElementPost} };
-
-        my $MainObject = $Kernel::OM->Get('Main');
-
-        FILTER:
-        for my $Filter ( sort keys %FilterList ) {
-
-            # extract filter config
-            my $FilterConfig = $FilterList{$Filter};
-
-            # extract template list
-            my %TemplateList = %{ $FilterConfig->{Templates} || {} };
-
-            next FILTER if !$Param{TemplateFile};
-            next FILTER if !$TemplateList{ $Param{TemplateFile} };
-
-            next FILTER if !$Kernel::OM->Get('Main')->Require( $FilterConfig->{Module} );
-
-            # create new instance
-            my $Object = $FilterConfig->{Module}->new(
-                %{$Self},
-                LayoutObject => $Self,
-            );
-
-            next FILTER if !$Object;
-
-            # run output filter
-            $Object->Run(
-                %{$FilterConfig},
-                Data         => \$Output,
-                TemplateFile => $Param{TemplateFile} || '',
-            );
-        }
     }
 
     return $Output;

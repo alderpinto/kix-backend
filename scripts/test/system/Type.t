@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -18,12 +18,10 @@ use vars (qw($Self));
 my $TypeObject = $Kernel::OM->Get('Type');
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # add type
 my $TypeName = 'Type' . $Helper->GetRandomID();
@@ -44,6 +42,7 @@ my $TypeIDWrong = $TypeObject->TypeAdd(
     Name    => $TypeName,
     ValidID => 1,
     UserID  => 1,
+    Silent  => 1,
 );
 
 $Self->False(
@@ -143,6 +142,7 @@ my $TypeUpdateWrong = $TypeObject->TypeUpdate(
     Name    => $TypeUpdateName,
     ValidID => 1,
     UserID  => 1,
+    Silent  => 1,
 );
 
 $Self->False(
@@ -208,6 +208,7 @@ $TypeUpdateWrong = $TypeObject->TypeUpdate(
     Name    => $TypeSecondName,
     ValidID => 2,
     UserID  => 1,
+    Silent  => 1,
 );
 
 $Self->False(
@@ -229,7 +230,8 @@ $Self->False(
     'TypeList() does not contain the type ' . $TypeUpdateName . ' with ID ' . $TypeID,
 );
 
-# cleanup is done by RestoreDatabase.
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

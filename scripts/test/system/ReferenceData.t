@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -16,20 +16,17 @@ use vars (qw($Self));
 
 use Kernel::System::VariableCheck qw(:all);
 
-# get needed objects
-my $ConfigObject = $Kernel::OM->Get('Config');
-my $Helper       = $Kernel::OM->Get('UnitTest::Helper');
+# get helper object
+my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 # use ReferenceData ISO list
-$ConfigObject->Set(
+$Kernel::OM->Get('Config')->Set(
     Key   => 'ReferenceData::OwnCountryList',
     Value => undef,
 );
 
-my $ReferenceDataObject = $Kernel::OM->Get('ReferenceData');
-
 # tests the method to make sure there are at least 100 countries
-my $CountryList = $ReferenceDataObject->CountryList();
+my $CountryList = $Kernel::OM->Get('ReferenceData')->CountryList();
 
 my $CountryListLength = scalar keys %$CountryList;
 
@@ -49,7 +46,7 @@ for my $Country (@CountryList) {
 }
 
 # set configuration to small list
-$ConfigObject->Set(
+$Kernel::OM->Get('Config')->Set(
     Key   => 'ReferenceData::OwnCountryList',
     Value => {
         'FR' => 'France',
@@ -58,7 +55,7 @@ $ConfigObject->Set(
     },
 );
 
-$CountryList = $ReferenceDataObject->CountryList();
+$CountryList = $Kernel::OM->Get('ReferenceData')->CountryList();
 
 @CountryList = ( 'Switzerland', 'United States', 'Japan' );
 

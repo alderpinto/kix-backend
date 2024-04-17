@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -98,12 +98,20 @@ sub Run {
     my $PostPw = $Param{Data}->{Password} || '';
 
     if ( defined $Param{Data}->{UserType} ) {
+
+        my $CGIObject       = CGI->new;
+        my @RemoteAddresses = ();
+        if ( $CGIObject->http('HTTP_X_FORWARDED_FOR') ) {
+            @RemoteAddresses = split(/",\s{0,1}"/, $CGIObject->http('HTTP_X_FORWARDED_FOR'));
+        }
+
         # check submitted data
         $User = $Kernel::OM->Get('Auth')->Auth(
-            User           => $Param{Data}->{UserLogin} || '',
-            UsageContext   => $Param{Data}->{UserType},
-            Pw             => $PostPw,
-            NegotiateToken => $Param{Data}->{NegotiateToken},
+            User            => $Param{Data}->{UserLogin} || '',
+            UsageContext    => $Param{Data}->{UserType},
+            Pw              => $PostPw,
+            NegotiateToken  => $Param{Data}->{NegotiateToken},
+            RemoteAddresses => \@RemoteAddresses
         );
         if ( $User ) {
             $UserID = $Kernel::OM->Get('User')->UserLookup(

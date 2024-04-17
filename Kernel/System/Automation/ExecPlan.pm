@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -13,13 +13,14 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'User',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    User
+    Valid
 );
 
 =head1 NAME
@@ -249,10 +250,15 @@ sub ExecPlanAdd {
         Name => $Param{Name},
     );
     if ( $ID ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "An ExecPlan with the same name already exists.",
-        );
+        if (
+            !defined $Param{Silent}
+            || !$Param{Silent}
+        ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "An ExecPlan with the same name already exists.",
+            );
+        }
         return;
     }
 
@@ -263,14 +269,20 @@ sub ExecPlanAdd {
     return if !$BackendObject;
 
     my $IsValid = $BackendObject->ValidateConfig(
-        Config => $Param{Parameters}
+        Config => $Param{Parameters},
+        Silent => $Param{Silent} || 0
     );
 
     if ( !$IsValid ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "ExecPlan config is invalid!"
-        );
+        if (
+            !defined $Param{Silent}
+            || !$Param{Silent}
+        ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "ExecPlan config is invalid!"
+            );
+        }
         return;
     }
 
@@ -313,7 +325,7 @@ sub ExecPlanAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'ExecPlan',
         ObjectID  => $ID,
@@ -366,10 +378,15 @@ sub ExecPlanUpdate {
         Name => $Param{Name} || $Data{Name},
     );
     if ( $ID && $ID != $Param{ID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "A ExecPlan with the same name already exists.",
-        );
+        if (
+            !defined $Param{Silent}
+            || !$Param{Silent}
+        ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "A ExecPlan with the same name already exists.",
+            );
+        }
         return;
     }
 
@@ -382,14 +399,20 @@ sub ExecPlanUpdate {
         return if !$BackendObject;
 
         my $IsValid = $BackendObject->ValidateConfig(
-            Config => $Param{Parameters}
+            Config => $Param{Parameters},
+            Silent => $Param{Silent} || 0
         );
 
         if ( !$IsValid ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "ExecPlan config is invalid!"
-            );
+            if (
+                !defined $Param{Silent}
+                || !$Param{Silent}
+            ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "ExecPlan config is invalid!"
+                );
+            }
             return;
         }
     }
@@ -435,7 +458,7 @@ sub ExecPlanUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'ExecPlan',
         ObjectID  => $Param{ID},
@@ -533,10 +556,15 @@ sub ExecPlanDelete {
         ID => $Param{ID},
     );
     if ( !$ID ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "An ExecPlan with the ID $Param{ID} does not exist.",
-        );
+        if (
+            !defined $Param{Silent}
+            || !$Param{Silent}
+        ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "An ExecPlan with the ID $Param{ID} does not exist.",
+            );
+        }
         return;
     }
 
@@ -544,10 +572,15 @@ sub ExecPlanDelete {
         ID => $Param{ID}
     );
     if (!$Deletable) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Could not delete exec plan, it is used/referenced in at least one object.",
-        );
+        if (
+            !defined $Param{Silent}
+            || !$Param{Silent}
+        ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Could not delete exec plan, it is used/referenced in at least one object.",
+            );
+        }
         return;
     }
 
@@ -569,7 +602,7 @@ sub ExecPlanDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'ExecPlan',
         ObjectID  => $Param{ID},
@@ -716,6 +749,62 @@ sub ExecPlanIsDeletable {
     }
 
     return 1;
+}
+
+=item ExecPlanDump()
+
+gets the "script code" of an exec plan
+
+    my $Code = $AutomationObject->ExecPlanDump(
+        ID => 123,       # the ID of the exec plan
+    );
+
+=cut
+
+sub ExecPlanDump {
+    my ( $Self, %Param ) = @_;
+
+    # check needed stuff
+    for (qw(ID)) {
+        if ( !$Param{$_} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Need $_!"
+            );
+            return;
+        }
+    }
+
+    my %ExecPlan = $Self->ExecPlanGet(
+        ID => $Param{ID}
+    );
+    if ( !%ExecPlan ) {
+        $Kernel::OM->Get('Log')->Log(
+            Priority => 'error',
+            Message  => "ExecPlan with ID $Param{ID} not found!"
+        );
+        return;
+    }
+
+    my $Name = $ExecPlan{Name};
+    $Name =~ s/"/\\\"/g;
+    my $Script = "ExecPlan \"$Name\"";
+
+    foreach my $Attr ( qw(Type Comment) ) {
+        next if !$ExecPlan{$Attr};
+        my $Value = $ExecPlan{$Attr};
+        $Value =~ s/"/\\\"/g;
+        $Script .= ' --'.$Attr.' "'.$Value.'"';
+    }
+    foreach my $Parameter ( sort keys %{$ExecPlan{Parameters} || {}} ) {
+        my $ParameterValue = $ExecPlan{Parameters}->{$Parameter};
+        if ( IsArrayRef($ParameterValue) ) {
+            $ParameterValue = join(',', @{$ParameterValue});
+        }
+        $Script .= ' --'.$Parameter.' "'.$ParameterValue.'"';
+    }
+
+    return $Script;
 }
 
 sub _LoadExecPlanTypeBackend {

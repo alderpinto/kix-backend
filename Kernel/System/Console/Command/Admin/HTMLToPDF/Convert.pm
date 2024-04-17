@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -13,9 +13,9 @@ use warnings;
 
 use base qw(Kernel::System::Console::BaseCommand);
 
-our @ObjectDependencies = (
-    "PrintHTMLToPDF",
-    "Main"
+our @ObjectDependencies = qw(
+    HTMLToPDF
+    Main
 );
 
 use Kernel::System::VariableCheck qw(:all);
@@ -95,97 +95,9 @@ sub Configure {
         ValueRegex  => qr/.*/smx,
     );
 
-
-    my $PrintObject = $Kernel::OM->Get('HTMLToPDF');
-    my %List        = $PrintObject->DefinitionDataList(
-        Valid => 1
-    );
-
-    my $Strg = "List of allowed objects:\n\n"
-        . "Object\t\t\tID or Number (Required)\t\t\tExpands\t\t\tFilters\n";
-
-    for my $Key ( sort keys %List ) {
-        my $IdNum   = q{};
-        my $Filters = q{};
-        if ( $List{$Key}->{IDKey} ) {
-            $IdNum = $List{$Key}->{IDKey};
-        }
-        if ( $List{$Key}->{NumberKey} ) {
-            $IdNum .= q{,} if $IdNum;
-            $IdNum .= $List{$Key}->{NumberKey};
-        }
-        if ( $List{$Key}->{Filters} ) {
-            $Filters = $List{$Key}->{Filters};
-        }
-
-        my $Expands = join( q{,}, @{$List{$Key}->{Definition}->{Expands}});
-        $Strg .= "$List{$Key}->{Object}\t\t\t$IdNum\t\t\t$Expands\t\t\t$Filters\n";
-    }
-
-    $Strg .= <<"END";
-\nFor more information about an object use the command 'Admin::HTMLToPDF::Inspect'.
-
-Filter:
-With "Filter" the data of the expands can be restricted. Each object has certain expands that can be used.
-However, not all are filterable. E.g. only articles (incl. dynamic fields) can be set as filters for tickets.
-
-A filter is structured as follows:
-{
-    \"ExpandObject\": {
-        \"AND|OR\": [
-            {
-                \"Field\": \"some field\",
-                \"Type\": \"CONTAINS or EQ\",
-                \"Value\" \"some value or as Array\"
-            }
-        ]
-    }
-}
-
-* 'ExpandObject' is the respective object which is defined as Expand.
-* 'AND|OR' Determines how the filter should be treated. Only one can be set at a time.
-* 'Field' Is the field name of the object. (e.g. TicketNumber or DynamicField_xyz) Caution Dynamic fields are only included if this is also set as Expand.
-* 'Type': Is the way the value of the field should be checked. (CONTAINS, EQ)
-* 'Value': Is the value to be checked for the field. It is possible to specify an array. These values in the array are then set as "OR".
-
-Allow:
-\"Allow\" can be used to restrict the data to be displayed in the \"Table\" type blocks. This is a whitelist.
-This means that only the data that match the test value is displayed.
-Warning: it is possible to always display the parameter with the check value \"KEY\".
-
-In addition, the table is defined as \"KeyValue\" for \"Columns\" and only the individual parameters are displayed.
-If Columns is not defined as \"KeyValue\", the entire row is displayed if the check value is correct.
-
-A allow is structured as follows:
-{
-    \"BlockID\": {
-        \"Attribute\": \"some value or KEY\",
-    }
-}
-
-Ignore:
-\"Ignore\" can be used to restrict the data to be displayed in the \"Table\" type blocks. This is a blacklist.
-This means that the respective parameter is not displayed if the test value matches.
-Warning: It is possible to always ignore the parameter with the \"KEY\" check value.
-
-In addition, the table is defined as \"KeyValue\" for \"Columns\" and only the individual parameters are hidden.
-If Columns is not defined as \"KeyValue\", the whole row is hidden if the check value is correct.
-
-A ignore is structured as follows:
-{
-    \"BlockID\": {
-        \"Attribute\": \"some value or KEY\",
-    }
-}
-
-Warning: Ignore and Allow cannot be used together in a table.
-
-END
-
     $Self->AdditionalHelp(
-        $Strg
+        $Self->_HelpInstraction()
     );
-
     return;
 }
 
@@ -272,6 +184,98 @@ sub Run {
 
     $Self->Print("<green>Done.</green>\n");
     return $Self->ExitCodeOk();
+}
+
+sub _HelpInstraction {
+    my ($Self, %Param) = @_;
+
+    my $PrintObject = $Kernel::OM->Get('HTMLToPDF');
+    my %List        = $PrintObject->TemplateDataList(
+        Valid => 1
+    );
+
+    my $Strg = "List of allowed objects:\n\n"
+        . "Object\t\t\tID or Number (Required)\t\t\tExpands\t\t\tFilters\n";
+
+    for my $Key ( sort keys %List ) {
+        my $IdNum   = q{};
+        my $Filters = q{};
+        if ( $List{$Key}->{IDKey} ) {
+            $IdNum = $List{$Key}->{IDKey};
+        }
+        if ( $List{$Key}->{NumberKey} ) {
+            $IdNum .= q{,} if $IdNum;
+            $IdNum .= $List{$Key}->{NumberKey};
+        }
+        if ( $List{$Key}->{Filters} ) {
+            $Filters = $List{$Key}->{Filters};
+        }
+
+        my $Expands = join( q{,}, @{$List{$Key}->{Definition}->{Expands}});
+        $Strg .= "$List{$Key}->{Object}\t\t\t$IdNum\t\t\t$Expands\t\t\t$Filters\n";
+    }
+
+    $Strg .= <<"END";
+\nFor more information about an object use the command 'Admin::HTMLToPDF::Inspect'.
+
+Filter:
+With "Filter" the data of the expands can be restricted. Each object has certain expands that can be used.
+However, not all are filterable. E.g. only articles (incl. dynamic fields) can be set as filters for tickets.
+
+A filter is structured as follows:
+{
+    \"ExpandObject\": {
+        \"AND|OR\": [
+            {
+                \"Field\": \"some field\",
+                \"Type\": \"CONTAINS or EQ\",
+                \"Value\" \"some value or as Array\"
+            }
+        ]
+    }
+}
+
+* 'ExpandObject' is the respective object which is defined as Expand.
+* 'AND|OR' Determines how the filter should be treated. Only one can be set at a time.
+* 'Field' Is the field name of the object. (e.g. TicketNumber or DynamicField_xyz) Caution Dynamic fields are only included if this is also set as Expand.
+* 'Type': Is the way the value of the field should be checked. (CONTAINS, EQ)
+* 'Value': Is the value to be checked for the field. It is possible to specify an array. These values in the array are then set as "OR".
+
+Allow:
+\"Allow\" can be used to restrict the data to be displayed in the \"Table\" type blocks. This is a whitelist.
+This means that only the data that match the test value is displayed.
+Warning: it is possible to always display the parameter with the check value \"KEY\".
+
+In addition, the table is defined as \"KeyValue\" for \"Columns\" and only the individual parameters are displayed.
+If Columns is not defined as \"KeyValue\", the entire row is displayed if the check value is correct.
+
+A allow is structured as follows:
+{
+    \"BlockID\": {
+        \"Attribute\": \"some value or KEY\",
+    }
+}
+
+Ignore:
+\"Ignore\" can be used to restrict the data to be displayed in the \"Table\" type blocks. This is a blacklist.
+This means that the respective parameter is not displayed if the test value matches.
+Warning: It is possible to always ignore the parameter with the \"KEY\" check value.
+
+In addition, the table is defined as \"KeyValue\" for \"Columns\" and only the individual parameters are hidden.
+If Columns is not defined as \"KeyValue\", the whole row is hidden if the check value is correct.
+
+A ignore is structured as follows:
+{
+    \"BlockID\": {
+        \"Attribute\": \"some value or KEY\",
+    }
+}
+
+Warning: Ignore and Allow cannot be used together in a table.
+
+END
+
+    return $Strg;
 }
 
 1;

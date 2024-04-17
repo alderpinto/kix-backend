@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -70,10 +70,12 @@ sub Encode {
 
     # check for needed data
     if ( !defined $Param{Data} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Need Data!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Need Data!',
+            );
+        }
         return;
     }
 
@@ -138,14 +140,12 @@ sub Decode {
 
     # use eval here, as JSON::XS->decode() dies when providing a malformed JSON string
     if ( !eval { $Scalar = $JSONObject->decode( $Param{Data} ) } ) {
-
-        if ( !$Param{Silence} ) {
+        if ( !$Param{Silent} ) {
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => 'Decoding the JSON string failed: ' . $@,
             );
         }
-
         return;
     }
 

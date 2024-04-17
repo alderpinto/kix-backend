@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -18,17 +18,11 @@ my $ReportingObject = $Kernel::OM->Get('Reporting');
 my $DynamicFieldObject = $Kernel::OM->Get('DynamicField');
 my $PivotObject = $ReportingObject->_LoadDataSourceBackend(Name => 'GenericSQL')->_LoadOutputHandlerBackend(Name => 'ResolveDynamicFieldValue');
 
-#
-# log tests
-#
-
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # create dynamic field
 my $DynamicFieldID = $DynamicFieldObject->DynamicFieldAdd(
@@ -65,26 +59,30 @@ my @ConfigTests = (
     {
         Test   => 'no config',
         Config => undef,
-        Expect => undef
+        Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'empty config',
         Config => {},
         Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'invalid Config - missing FieldNames attribute',
         Config => {
             Columns => ['col1','col2'],
         },
-        Expect => undef
+        Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'invalid Config - missing Columns atribute',
         Config => {
             FieldNames => ['test','test'],
         },
-        Expect => undef
+        Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'invalid Config - Columns and FieldNames are different',
@@ -92,7 +90,8 @@ my @ConfigTests = (
             Columns => ['col1','col2'],
             FieldNames => ['test'],
         },
-        Expect => undef
+        Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'valid Config',
@@ -100,14 +99,15 @@ my @ConfigTests = (
             Columns => ['col1','col2'],
             FieldNames => ['test', 'test'],
         },
-        Expect => 1
+        Expect => 1,
     },
 );
 
 foreach my $Test ( @ConfigTests ) {
     # wrong config
     my $Result = $PivotObject->ValidateConfig(
-        Config => $Test->{Config}
+        Config => $Test->{Config},
+        Silent => $Test->{Silent},
     );
 
     if ( $Test->{Expect} ) {
@@ -222,7 +222,8 @@ foreach my $Test ( @DataTests ) {
     );
 }
 
-# cleanup is done by RestoreDatabase
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

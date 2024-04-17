@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -17,12 +17,15 @@ use File::Basename;
 use XML::Simple;
 
 use Kernel::System::VariableCheck qw(:all);
+use Kernel::System::EventHandler;
+
 use vars qw(@ISA);
 
-our @ObjectDependencies = (
-    'Config',
-    'DB',
-    'Log',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    DB
+    Log
 );
 
 =head1 NAME
@@ -55,6 +58,15 @@ sub new {
     # allocate new hash for object
     my $Self = {};
     bless( $Self, $Type );
+
+    @ISA = qw(
+        Kernel::System::EventHandler
+    );
+
+    # init of event handler
+    $Self->EventHandlerInit(
+        Config => 'SysConfig::EventModulePost',
+    );
 
     $Self->{CacheType} = 'SysConfig';
     $Self->{CacheTTL}  = 60 * 60 * 24 * 30;   # 30 days
@@ -97,11 +109,9 @@ returns a list of supported SysConfig option types.
 sub OptionTypeList {
     my ( $Self, %Param ) = @_;
 
-    # get all type modules
-    my @Files = $Kernel::OM->Get('Main')->DirectoryRead(
-        Directory => $Kernel::OM->Get('Config')->Get('Home').'/Kernel/System/SysConfig/OptionType',
-        Filter    => '*.pm',
-    );
+    # get all type modules - don't use the MainObject because we will have a deep recursion due to ring deps
+    my @Files = glob $Kernel::OM->Get('Config')->Get('Home').'/Kernel/System/SysConfig/OptionType/*.pm';
+
     my @Result = map { my $Module = fileparse($_, '.pm'); $Module } grep { not m/Base\.pm/ } @Files;
 
     return @Result;
@@ -183,10 +193,12 @@ sub OptionGet {
     # check needed stuff
     for (qw(Name)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -237,10 +249,12 @@ sub OptionGet {
 
     # no data found...
     if ( !%Data ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "SysConfig option '$Param{Name}' not found!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "SysConfig option '$Param{Name}' not found!",
+            );
+        }
         return;
     }
 
@@ -418,7 +432,7 @@ sub OptionAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'SysConfigOption',
         ObjectID  => $Param{Name},
@@ -458,17 +472,27 @@ sub OptionUpdate {
     # check needed stuff
     for (qw(Name UserID)) {
         if ( !defined( $Param{$_} ) ) {
-            $Kernel::OM->Get('Log')->Log( Priority => 'error', Message => "Need $_!" );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
 
     if ( $Param{Type} && !$Self->{OptionTypes}->{$Param{Type}} ) {
-        $Kernel::OM->Get('Log')->Log( Priority => 'error', Message => "Type \"$Param{Type} not supported!" );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Type \"$Param{Type} not supported!"
+            );
+        }
         return;
     }
 
-    my %OptionData = $Self->OptionGet(
+    my %OldOptionData = $Self->OptionGet(
         Name => $Param{Name},
     );
 
@@ -477,16 +501,17 @@ sub OptionUpdate {
     KEY:
     for my $Key (qw(Name Context ContextMetadata Description AccessLevel ExperienceLevel Type Group IsRequired Setting Default Value Comment DefaultValidID ValidID)) {
 
-        next KEY if defined $OptionData{$Key} && $OptionData{$Key} eq $Param{$Key};
+        next KEY if defined $OldOptionData{$Key} && $OldOptionData{$Key} eq $Param{$Key};
 
         $ChangeRequired = 1;
 
         last KEY;
     }
+    return 1 if (!$ChangeRequired);
 
-    $Param{Default} = $Param{Default} // $OptionData{Default};
+    $Param{Default} = $Param{Default} // $OldOptionData{Default};
 
-    $Param{DefaultValidID} = !defined $Param{DefaultValidID} ? $OptionData{DefaultValidID} : $Param{DefaultValidID} == 1 ? 1 : 2;
+    $Param{DefaultValidID} = !defined $Param{DefaultValidID} ? $OldOptionData{DefaultValidID} : $Param{DefaultValidID} == 1 ? 1 : 2;
 
     # determine if this option has been modified
     my $IsModified = 0;
@@ -512,13 +537,13 @@ sub OptionUpdate {
         );
     }
     if ( $Param{Default} && ref $Param{Default} ) {
-        my $Type = $Param{Type} || $OptionData{Type};
+        my $Type = $Param{Type} || $OldOptionData{Type};
         $Param{Default} = $Self->{OptionTypeModules}->{$Type}->Encode(
             Data => $Param{Default}
         )
     }
     if ( $Param{Value} && ref $Param{Value} ) {
-        my $Type = $Param{Type} || $OptionData{Type};
+        my $Type = $Param{Type} || $OldOptionData{Type};
         $Param{Value} = $Self->{OptionTypeModules}->{$Type}->Encode(
             Data => $Param{Value}
         )
@@ -541,11 +566,12 @@ sub OptionUpdate {
 
     # handle the update result...
     if ( !$Result ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "DB update failed!",
-        );
-
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "DB update failed!",
+            );
+        }
         return;
     }
 
@@ -554,8 +580,22 @@ sub OptionUpdate {
         Type => $Self->{CacheType}
     );
 
+    my %OptionData = $Self->OptionGet(
+        Name => $Param{Name},
+    );
+
+    $Self->EventHandler(
+        Event => 'SysConfigOptionUpdate',
+        Data  => {
+            Name      => $Param{Name},
+            OldOption => \%OldOptionData,
+            NewOption => \%OptionData
+        },
+        UserID => $Param{UserID} || 1,
+    );
+
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'SysConfigOption',
         ObjectID  => $Param{Name},
@@ -639,7 +679,7 @@ sub OptionDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'SysConfigOption',
         ObjectID  => $Param{Name},
@@ -681,7 +721,8 @@ sub ValueGet {
 Get the value of all (valid) SysConfig option
 
     my %AllOptions = $SysConfigObject->ValueGetAll(
-        Valid => 0|1
+        Valid    => 0|1,        # default: 0
+        Modified => 0|1,        # default: 0
     );
 
 =cut
@@ -690,25 +731,33 @@ sub ValueGetAll {
     my ( $Self, %Param ) = @_;
 
     # check cache
-    my $CacheKey = 'ValueGetAll::'.($Param{Valid} || '');
+    my $CacheKey = 'ValueGetAll::'.($Param{Valid} || '').'::'.($Param{Modified} || '');
     my $CacheResult = $Kernel::OM->Get('Cache')->Get(
         Type => $Self->{CacheType},
         Key  => $CacheKey
     );
-    return %{$CacheResult} if (IsArrayRefWithData($CacheResult));
+    return %{$CacheResult} if IsHashRefWithData($CacheResult);
 
     my $Where = '';
     if ( $Param{Valid} ) {
         $Where = 'WHERE valid_id = 1'
     }
+    if ( $Param{Modified} ) {
+        if ( $Where ) {
+            $Where .= ' AND is_modified = 1';
+        }
+        else {
+            $Where = 'WHERE is_modified = 1';
+        }
+    }
 
     return if !$Kernel::OM->Get('DB')->Prepare(
-        SQL  => "SELECT name, type, default_value, value FROM sysconfig ".$Where
+        SQL  => "SELECT name, type, default_value, value, valid_id FROM sysconfig ".$Where
     );
 
     # fetch the result
     my $FetchResult = $Kernel::OM->Get('DB')->FetchAllArrayRef(
-        Columns => [ 'Name', 'Type', 'Default', 'Value' ]
+        Columns => [ 'Name', 'Type', 'Default', 'Value', 'ValidID' ]
     );
 
     # no data found...
@@ -722,7 +771,7 @@ sub ValueGetAll {
 
     my %Result = map {
         my $Value = defined $_->{Value} && $_->{Value} ne '' ? $_->{Value} : $_->{Default};
-        if ( $Value ) {
+        if ( $Value && $Self->{OptionTypeModules}->{$_->{Type}} ) {
             $Value = $Self->{OptionTypeModules}->{$_->{Type}}->Decode(
                 Data => $Value
             );
@@ -759,19 +808,27 @@ sub ValueSet {
     # check needed stuff
     for (qw(Name UserID)) {
         if ( !defined( $Param{$_} ) ) {
-            $Kernel::OM->Get('Log')->Log( Priority => 'error', Message => "Need $_!" );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
 
     my %OptionData = $Self->OptionGet(
-        Name => $Param{Name},
+        Name   => $Param{Name},
+        Silent => $Param{Silent},
     );
+    return if ( !%OptionData );
 
     my $Result = $Self->OptionUpdate(
         %OptionData,
         Value  => $Param{Value},
         UserID => $Param{UserID},
+        Silent => $Param{Silent},
     );
 
     return $Result;
@@ -799,7 +856,7 @@ sub CleanUp {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'SysConfigOption',
     );
@@ -968,7 +1025,7 @@ sub _RebuildFromFile {
     }
 
     # Now process the entries in init order and assign them to the xml entry list.
-     for my $Init (qw(Framework Application Config Changes Unkown)) {
+     for my $Init (qw(Framework Application Config Changes Unknown)) {
         for my $Option ( @{ $XMLConfigTMP{$Init} } ) {
             push(
                 @{ $Self->{XMLConfig} },
@@ -1026,6 +1083,7 @@ sub _RebuildFromFile {
             Name            => $OptionRaw->{Name},
             Description     => $OptionRaw->{Description}->{content} || '',
             AccessLevel     => $OptionRaw->{AccessLevel},
+            Context         => $OptionRaw->{Context},
             ExperienceLevel => $OptionRaw->{ExperienceLevel},
             Type            => $Type,
             Group           => $OptionRaw->{Group},

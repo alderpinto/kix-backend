@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -13,13 +13,14 @@ package Kernel::System::State;
 use strict;
 use warnings;
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'SysConfig',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    SysConfig
+    Valid
 );
 
 =head1 NAME
@@ -127,7 +128,7 @@ sub StateAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'State',
         ObjectID  => $ID,
@@ -304,17 +305,11 @@ sub StateUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'State',
         ObjectID  => $Param{ID},
     );
-
-    # check all sysconfig options
-    #return 1 if !$Param{CheckSysConfig};
-
-    # check all sysconfig options and correct them automatically if neccessary
-    #$Kernel::OM->Get('SysConfig')->ConfigItemCheckAll();
 
     return 1;
 }
@@ -576,10 +571,12 @@ sub StateLookup {
 
     # check needed stuff
     if ( !$Param{State} && !$Param{StateID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            State   => 'error',
-            Message => 'Need State or StateID!'
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                State   => 'error',
+                Message => 'Need State or StateID!'
+            );
+        }
         return;
     }
 
@@ -772,7 +769,7 @@ sub StateDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'State',
         ObjectID  => $Param{ID},

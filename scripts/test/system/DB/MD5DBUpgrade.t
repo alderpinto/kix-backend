@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -13,6 +13,12 @@ use warnings;
 use utf8;
 
 use vars (qw($Self));
+
+# get helper object
+my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # get needed objects
 my $DBObject   = $Kernel::OM->Get('DB');
@@ -122,6 +128,9 @@ $Self->True(
     $DBObject->Do( SQL => 'DROP TABLE test_md5_conversion' ) || 0,
     "Do() DROP TABLE",
 );
+
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

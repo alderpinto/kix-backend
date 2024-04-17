@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -17,9 +17,8 @@ use Kernel::Language;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'Log'
+our @ObjectDependencies = qw(
+    Log
 );
 
 =head1 NAME
@@ -52,9 +51,7 @@ sub new {
     my $Self = {};
     bless( $Self, $Type );
 
-    # KIX4OTRS-capeIT
     $Self->{UserLanguage} = $Param{UserLanguage};
-    # EO KIX4OTRS-capeIT
 
     return $Self;
 }
@@ -77,9 +74,6 @@ sub ReplacePlaceholder {
     # allow both styles but do not capture it
     $Self->{Start} = '(?><|&lt;)';
     $Self->{End}   = '(?>>|&gt;)';
-    if ( $Param{RichText} ) {
-        $Param{Text} =~ s/(\n|\r)//g;
-    }
 
     return $Self->_Replace(
         %Param
@@ -100,7 +94,7 @@ sub _HashGlobalReplace {
     my ( $Self, $Text, $Tag, %H ) = @_;
 
     # Generate one single matching string for all keys to save performance.
-    my $Keys = join '|', map {quotemeta} grep { defined $H{$_} } keys %H;
+    my $Keys = join( q{|}, map {quotemeta} grep { defined $H{$_} } keys %H);
 
     # Add all keys also as lowercase to be able to match case insensitive,
     #   e. g. <KIX_CUSTOMER_From> and <KIX_CUSTOMER_FROM>.

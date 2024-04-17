@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -104,19 +104,23 @@ sub ValidateConfig {
 
     # validate if Columns is an ArrayRef
     if ( exists $Param{Config}->{Columns} && !IsArrayRef($Param{Config}->{Columns}) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Config "Columns" is not an ArrayRef!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Config "Columns" is not an ArrayRef!',
+            );
+        }
         return;
     }
 
     foreach my $Option ( qw(Separator Quote) ) {
         if ( exists $Param{Config}->{$Option} && !$Param{Config}->{$Option} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Config \"$Option\" is invalid!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Config \"$Option\" is invalid!",
+                );
+            }
             return;
         }
     }
@@ -124,10 +128,12 @@ sub ValidateConfig {
     my $Languages = $Kernel::OM->Get('Config')->Get('DefaultUsedLanguages');
 
     if ( $Param{Config}->{TranslateColumnNames} && $Param{Config}->{TranslateColumnNames} =~ /^[a-zA-Z]+$/g && !$Languages->{$Param{Config}->{TranslateColumnNames}} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Language \"$Param{Config}->{TranslateColumnNames}\" not supported!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Language \"$Param{Config}->{TranslateColumnNames}\" not supported!",
+            );
+        }
         return;
     }
 

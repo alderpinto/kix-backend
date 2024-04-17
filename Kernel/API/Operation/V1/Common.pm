@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -115,8 +115,24 @@ sub RunOperation {
             $ParentCheckMethod = 'GET';
         }
 
+        # if object to be created is a ticket and no queue id is given,
+        # fallback from sysconfig needs to be set for later base permission check
+        if ($Param{Data}->{Ticket} && !$Param{Data}->{Ticket}->{QueueID} && $Self->{RequestMethod} eq 'POST') {
+            my $QueueObject = $Kernel::OM->Get('Queue');
+            my $DefaultTicketQueue = $Kernel::OM->Get('Config')->Get('Ticket::Queue::Default');
+            my %AllTicketQueues = reverse $QueueObject->QueueList();
+            if ($AllTicketQueues{$DefaultTicketQueue}) {
+                $Param{Data}->{Ticket}->{QueueID} = $AllTicketQueues{$DefaultTicketQueue};
+            }
+            else {
+                return $Self->_Error(
+                    Code => 'Object.UnableToCreate',
+                );
+            }
+        }
+
         # check the necessary permission of the parent object if needed
-        if ( IsHashRefWithData($Self->{ParentMethodOperationMapping}) && $Self->{ParentMethodOperationMapping}->{$ParentCheckMethod} ) {
+        if ( !$Param{IgnoreParentPermissions} && IsHashRefWithData($Self->{ParentMethodOperationMapping}) && $Self->{ParentMethodOperationMapping}->{$ParentCheckMethod} ) {
 
             # get the config of the parent operation to determine the primary object ID attribute
             my $OperationConfig = $Kernel::OM->Get('Config')->Get('API::Operation::Module')->{$Self->{ParentMethodOperationMapping}->{$ParentCheckMethod}};
@@ -124,7 +140,7 @@ sub RunOperation {
             my $Data = $OperationConfig->{ObjectID} ? {
                     $OperationConfig->{ObjectID} => $Param{Data}->{$OperationConfig->{ObjectID}},
 
-                    # TODO: find generic solution ("AlwaysForwardAttrbutes" config?)
+                    # TODO: find generic solution ("AlwaysForwardAttributes" config?)
                     RelevantOrganisationID => $Param{Data}->{RelevantOrganisationID},
                 } : $Param{Data};
 
@@ -158,6 +174,9 @@ sub RunOperation {
                 return $Result;
             }
         }
+
+        # keep it for varable replacement in permission conditions
+        $Self->{RelevantOrganisationID} = $Param{Data}->{RelevantOrganisationID};
 
         # check if we have permission for this object
         my $StartTime = Time::HiRes::time();
@@ -225,7 +244,8 @@ sub RunOperation {
             Key  => $CacheKey,
         );
 
-        if ( IsHashRefWithData($CacheResult) ) {
+        # FIXME: get specific object type for implicit paging
+        if ( IsHashRefWithData($CacheResult) && !IsHashRefWithData($Self->{OperationConfig}->{ImplicitPagingFor})) {
             $Self->_Debug( $Self->{LevelIndent}, "return cached response (Key=$CacheKey)" );
             $Self->{'_CachedResponse'} = 1;
             $Result = $Self->_Success(
@@ -246,7 +266,7 @@ sub RunOperation {
             my $PreRunResult = $Self->PreRun(
                 %Param,
             );
-            
+
             $Self->_Debug($Self->{LevelIndent}, sprintf("PreRun took %i ms", TimeDiff($StartTime)));
 
             if ( !$PreRunResult->{Success} ) {
@@ -277,7 +297,7 @@ sub RunOperation {
 
     # log created ID of POST requests
     if ( $Self->{RequestMethod} eq 'POST' && IsHashRefWithData($Result) && $Result->{Success} ) {
-        my @Data = %{ $Result->{Data} };
+        my @Data = %{ $Result->{Data} || {} };
         $Self->_Debug( $Self->{LevelIndent}, "created new item (" . join( '=', @Data ) . ")" );
     }
 
@@ -382,6 +402,9 @@ sub Init {
     # Search parameter is not handled in API by default
     $Self->{HandleSearchInAPI} = 0;
 
+    # Sort parameter is not handled in Core by default
+    $Self->{HandleSortInCORE} //= 0;
+
     # calculate LevelIndent for Logging
     $Self->{Level} = $Self->{Level} || 0;
 
@@ -427,15 +450,7 @@ sub PrepareData {
         Success => 1
     };
 
-    # check needed stuff
-    for my $Needed (qw(Data)) {
-        if ( !$Param{$Needed} ) {
-            return $Self->_Error(
-                Code    => 'PrepareData.MissingParameter',
-                Message => "$Needed parameter is missing!",
-            );
-        }
-    }
+    $Param{Data} //= {};
 
     # prepare filter
     if ( exists( $Param{Data}->{filter} ) ) {
@@ -445,7 +460,7 @@ sub PrepareData {
         );
         if ( IsHashRefWithData($Result) && exists $Result->{Success} && $Result->{Success} == 0 ) {
 
-            # error occured
+            # error occurred
             return $Result;
         }
         $Self->{Filter} = $Result;
@@ -544,7 +559,7 @@ sub PrepareData {
                 $Direction = 'descending';
             }
 
-            if ( !IsArrayRefWithData( $Self->{Sorter}->{$Object} ) ) {
+            if ( !IsArrayRefWithData( $Self->{Sort}->{$Object} ) ) {
                 $Self->{Sort}->{$Object} = [];
             }
             push @{ $Self->{Sort}->{$Object} }, {
@@ -771,7 +786,7 @@ sub SuppressSubResourceInclude {
         if ( exists $Self->{SuppressedSubResourceIncludes}->{$SubResource} ) {
             next;
         }
-        $Self->_Debug( $Self->{LevelIndent}, "supress including of sub-resource \"$SubResource\"" );
+        $Self->_Debug( $Self->{LevelIndent}, "suppress including of sub-resource \"$SubResource\"" );
         $Self->{SuppressSubResourceIncludes}->{lc($SubResource)} = 1;
     }
 }
@@ -930,7 +945,7 @@ sub SetDefaultSort {
 
 =item SetTotalItemCount()
 
-set the total item count for specific object types (can be used in conjuction with implicit paging)
+set the total item count for specific object types (can be used in conjunction with implicit paging)
 
     $CommonObject->SetTotalItemCount(
         Ticket => 123,
@@ -962,6 +977,20 @@ sub HandleSearchInAPI {
     my ( $Self, %Param ) = @_;
 
     $Self->{HandleSearchInAPI} = 1;
+}
+
+=item HandleSortInCORE()
+
+Tell the API to handle the "sort" parameter in the CORE. This is needed for operations that don't handle the "sort" parameter and leave the work to the CORE.
+
+    $CommonObject->HandleSortInCORE();
+
+=cut
+
+sub HandleSortInCORE {
+    my ( $Self, %Param ) = @_;
+
+    $Self->{HandleSortInCORE} = 1;
 }
 
 =item ApplyPaging()
@@ -1090,7 +1119,9 @@ helper function to return a successful result.
 
 sub _Success {
     my ( $Self, %Param ) = @_;
-    my %Headers;
+    my %Headers = %{$Param{AdditionalHeaders}||{}};
+
+    delete $Param{AdditionalHeaders};
 
     # ignore cached values if we have a cached response (see end of Init method)
 
@@ -1213,7 +1244,10 @@ sub _Success {
         }
 
         # honor a sorter, if we have one
-        if ( IsHashRefWithData( $Self->{Sort} || $Self->{DefaultSort} ) ) {
+        if (
+            !$Self->{HandleSortInCORE}
+            && IsHashRefWithData( $Self->{Sort} )
+        ) {
             my $StartTime = Time::HiRes::time();
 
             $Self->_ApplySort(
@@ -1354,6 +1388,17 @@ helper function to execute another operation to work with its result.
 sub ExecOperation {
     my ( $Self, %Param ) = @_;
 
+    # add relevant orga id to data if given
+    if ( IsHashRefWithData($Self->{RequestData}) && $Self->{RequestData}->{RelevantOrganisationID} ) {
+        if (IsHashRefWithData($Param{Data})) {
+            $Param{Data}->{RelevantOrganisationID} = $Self->{RequestData}->{RelevantOrganisationID};
+        } else {
+            $Param{Data} = {
+                RelevantOrganisationID => $Self->{RequestData}->{RelevantOrganisationID}
+            };
+        }
+    }
+
     # check needed stuff
     for my $Needed (qw(OperationType)) {
         if ( !$Param{$Needed} ) {
@@ -1390,33 +1435,52 @@ sub ExecOperation {
     # TODO: the following code is nearly identical to the code used in Transport::REST, method ProcessRequest -> should be generalized
     # maybe another solution to execute operations / API calls is needed
 
-    # determine available methods
-    my %AvailableMethods;
-    for my $CurrentOperation ( sort keys %{ $TransportConfig->{RouteOperationMapping} } ) {
-
-        next if !IsHashRefWithData( $TransportConfig->{RouteOperationMapping}->{$CurrentOperation} );
-
-        my %RouteMapping = %{ $TransportConfig->{RouteOperationMapping}->{$CurrentOperation} };
-        my $RouteRegEx = $RouteMapping{Route};
-        $RouteRegEx =~ s{:([^\/]+)}{(?<$1>[^\/]+)}xmsg;
-
-        next if !( $RequestURI =~ m{^ $RouteRegEx $}xms );
-
-        $AvailableMethods{ $RouteMapping{RequestMethod}->[0] } = {
-            Operation => $CurrentOperation,
-            Route     => $RouteMapping{Route}
-        };
-    }
-
     # get direct sub-resource for generic including
     my %OperationRouteMapping = (
         $Param{OperationType} => $CurrentRoute
     );
+
+    # determine parent mapping as well
+    my $ParentObjectRoute = $CurrentRoute;
+    $ParentObjectRoute =~ s/^((.*?):(\w+))\/(.+?)$/$1/g;
+    $ParentObjectRoute = '' if $ParentObjectRoute eq $CurrentRoute;
+    my %ParentMethodOperationMapping;
+
+    # determine available methods
+    my %AvailableMethods;
     for my $Op ( sort keys %{ $TransportConfig->{RouteOperationMapping} } ) {
-        # ignore invalid config
-        next if !IsHashRefWithData( $TransportConfig->{RouteOperationMapping}->{$Op} );
+
+        my %RouteMapping = %{ $TransportConfig->{RouteOperationMapping}->{$Op} || {} };
+        my $RouteRegEx = $RouteMapping{Route};
+        $RouteRegEx =~ s{:([a-z][a-z0-9]*)}{(?<$1>[^\/]+)}xmsgi;
+
+        if ( $ParentObjectRoute ) {
+            # ignore anything that has nothing to do with the parent Ops route
+            if ( $ParentObjectRoute ne '/' && "$RouteMapping{Route}/" !~ /^$ParentObjectRoute\/$/ ) {
+                # do nothing
+            }
+            elsif ( $ParentObjectRoute eq '/' && "$RouteMapping{Route}/" !~ /^$ParentObjectRoute[:a-zA-Z_]+$\//g ) {
+                # do nothing
+            }
+            else {
+                my $Method = $TransportConfig->{RouteOperationMapping}->{$Op}->{RequestMethod}->[0];
+                $ParentMethodOperationMapping{$Method} = $Op;
+            }
+        }
+
+        if (
+            eval { qr/^ $RouteRegEx $/xms }
+            && $RequestURI =~ m{^ $RouteRegEx $}xms
+        ) {
+            $AvailableMethods{ $RouteMapping{RequestMethod}->[0] } = {
+                Operation => $Op,
+                Route     => $RouteMapping{Route}
+            };
+        }
+
         # ignore non-search or -get operations
         next if $Op !~ /(Search|Get)$/;
+
         # ignore anything that has nothing to do with the current Ops route
         if ( $CurrentRoute ne '/' && "$TransportConfig->{RouteOperationMapping}->{$Op}->{Route}/" !~ /^$CurrentRoute\// ) {
             next;
@@ -1426,30 +1490,7 @@ sub ExecOperation {
         }
 
         $OperationRouteMapping{$Op} = $TransportConfig->{RouteOperationMapping}->{$Op}->{Route};
-    }
 
-    # determine parent mapping as well
-    my $ParentObjectRoute = $CurrentRoute;
-    $ParentObjectRoute =~ s/^((.*?):(\w+))\/(.+?)$/$1/g;
-    $ParentObjectRoute = '' if $ParentObjectRoute eq $CurrentRoute;
-
-    my %ParentMethodOperationMapping;
-    if ( $ParentObjectRoute ) {
-        for my $Op ( sort keys %{ $TransportConfig->{RouteOperationMapping} } ) {
-            # ignore invalid config
-            next if !IsHashRefWithData( $TransportConfig->{RouteOperationMapping}->{$Op} );
-
-            # ignore anything that has nothing to do with the parent Ops route
-            if ( $ParentObjectRoute ne '/' && "$TransportConfig->{RouteOperationMapping}->{$Op}->{Route}/" !~ /^$ParentObjectRoute\/$/ ) {
-                next;
-            }
-            elsif ( $ParentObjectRoute eq '/' && "$TransportConfig->{RouteOperationMapping}->{$Op}->{Route}/" !~ /^$ParentObjectRoute[:a-zA-Z_]+$\//g ) {
-                next;
-            }
-
-            my $Method = $TransportConfig->{RouteOperationMapping}->{$Op}->{RequestMethod}->[0];
-            $ParentMethodOperationMapping{$Method} = $Op;
-        }
     }
 
     # init new Operation object
@@ -1476,8 +1517,11 @@ sub ExecOperation {
         ParentMethodOperationMapping => \%ParentMethodOperationMapping,
         Authorization            => $Self->{Authorization},
         Level                    => ($Self->{Level} || 0) + 1,
+        SuppressPermissionErrors => $Param{SuppressPermissionErrors},
         IgnorePermissions        => $Param{IgnorePermissions},
-        SuppressPermissionErrors => $Param{SuppressPermissionErrors}
+        SuppressPermissionErrors => $Param{SuppressPermissionErrors},
+        HandleSortInCORE         => $Self->{HandleSortInCORE},
+        IgnoreValidators         => 1,                                  # always ignore validators in internal API calls
     );
 
     # if operation init failed, bail out
@@ -1523,8 +1567,10 @@ sub ExecOperation {
             %{$Param{Data} || {}},
             %AdditionalData
         },
-        IgnorePermissions   => $Param{IgnorePermissions},
-        PermissionCheckOnly => $Param{PermissionCheckOnly},
+        PermissionCheckOnly     => $Param{PermissionCheckOnly},
+        IgnorePermissions       => $Param{IgnorePermissions},
+        IgnoreParentPermissions => $Param{IgnoreParentPermissions},
+        IgnoreValidators         => 1,                                  # always ignore validators in internal API calls
     );
 
     # check result and add cachetype if neccessary
@@ -1562,12 +1608,12 @@ sub _ValidateFilter {
         'LTE'        => { 'NUMERIC' => 1, 'DATE'   => 1, 'DATETIME' => 1 },
         'GTE'        => { 'NUMERIC' => 1, 'DATE'   => 1, 'DATETIME' => 1 },
         'IN'         => { 'NUMERIC' => 1, 'STRING' => 1, 'DATE'     => 1, 'DATETIME' => 1 },
+        '!IN'         => { 'NUMERIC' => 1, 'STRING' => 1, 'DATE'     => 1, 'DATETIME' => 1 },
         'CONTAINS'   => { 'STRING'  => 1 },
         'STARTSWITH' => { 'STRING'  => 1 },
         'ENDSWITH'   => { 'STRING'  => 1 },
         'LIKE'       => { 'STRING'  => 1 },
     );
-    my $ValidOperators = join( '|', keys %OperatorTypeMapping );
     my %ValidTypes;
     foreach my $Tmp ( values %OperatorTypeMapping ) {
         foreach my $Type ( keys %{$Tmp} ) {
@@ -1620,8 +1666,14 @@ sub _ValidateFilter {
 
             # iterate filters
             foreach my $Filter ( @{ $FilterDef->{$Object}->{$BoolOperator} } ) {
-                $Filter->{Operator} = uc( $Filter->{Operator} || '' );
+                $Filter->{Operator} = uc( $Filter->{Operator} || q{} );
                 $Filter->{Type}     = uc( $Filter->{Type}     || 'STRING' );
+
+                # handle negated operators
+                if ( $Filter->{Operator} =~ /^!(.*?)$/ ) {
+                    $Filter->{Operator} = $1;
+                    $Filter->{Not} = !$Filter->{Not};
+                }
 
                 # check if filter field is valid
                 if ( !$Filter->{Field} ) {
@@ -1632,7 +1684,10 @@ sub _ValidateFilter {
                 }
 
                 # check if filter Operator is valid
-                if ( $Filter->{Operator} !~ /^($ValidOperators)$/g ) {
+                if (
+                    !$Filter->{Operator}
+                    || !$OperatorTypeMapping{$Filter->{Operator}}
+                ) {
                     return $Self->_Error(
                         Code    => 'BadRequest',
                         Message => "Unknown filter operator $Filter->{Operator} in $Object.$Filter->{Field}!",
@@ -1656,7 +1711,11 @@ sub _ValidateFilter {
                 }
 
                 # check DATE value
-                if ( $Filter->{Type} eq 'DATE' && $Filter->{Value} !~ /^(\d{4}-\d{2}-\d{2}(\s*([-+]\d+\w\s*)*)|\s*([-+]\d+\w\s*?)*)$/ && $Filter->{Value} !~ /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\s*([-+]\d+\w\s*)*)|\s*([-+]\d+\w\s*?)*)$/ ) {
+                if (
+                    $Filter->{Type} eq 'DATE'
+                    && $Filter->{Value} !~ /^(\d{4}-\d{2}-\d{2}(\s*([-+]\d+\w\s*)*)|\s*([-+]\d+\w\s*?)*)$/
+                    && $Filter->{Value} !~ /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\s*([-+]\d+\w\s*)*)|\s*([-+]\d+\w\s*?)*)$/
+                ) {
                     return $Self->_Error(
                         Code    => 'BadRequest',
                         Message => "Invalid date value $Filter->{Value} in $Object.$Filter->{Field}!",
@@ -1664,7 +1723,10 @@ sub _ValidateFilter {
                 }
 
                 # check DATETIME value
-                if ( $Filter->{Type} eq 'DATETIME' && $Filter->{Value} !~ /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\s*([-+]\d+\w\s*)*)|\s*([-+]\d+\w\s*?)*)$/ ) {
+                if (
+                    $Filter->{Type} eq 'DATETIME'
+                    && $Filter->{Value} !~ /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\s*([-+]\d+\w\s*)*)|\s*([-+]\d+\w\s*?)*)$/
+                ) {
                     return $Self->_Error(
                         Code    => 'BadRequest',
                         Message => "Invalid datetime value $Filter->{Value} in $Object.$Filter->{Field}!",
@@ -2605,7 +2667,9 @@ sub _GetCacheKey {
         delete $RequestData{offset};
         delete $RequestData{limit};
     }
-    delete $RequestData{sort};
+    if ( !$Self->{HandleSortInCORE} ) {
+        delete $RequestData{sort};
+    }
     delete $RequestData{filter};
 
     my @CacheKeyParts;
@@ -2710,10 +2774,7 @@ sub _ExecPermissionChecks {
 check base permissions
 
     my $Return = $CommonObject->_CheckBasePermission(
-        Data         => {},
-        Permission   => ...,
-        UsageContext => 'Agent'|'Customer',
-        UserID       => 1
+        Data => {},
     );
 
     $Return = _Success if granted
@@ -2752,7 +2813,7 @@ sub _CheckBasePermission {
         return $Self->_Success();
     }
 
-    # add corresponding permission filter 
+    # add corresponding permission filter
     my %Filter = $Self->_CreateFilterForObject(
         Filter   => {},
         Object   => $Result->{Object},
@@ -3461,6 +3522,7 @@ sub _ReplaceVariablesInPermission {
         );
 
         if ( %User ) {
+
             # get contact for user
             my %Contact = $Kernel::OM->Get('Contact')->ContactGet(
                 UserID => $Self->{Authorization}->{UserID},
@@ -3476,11 +3538,29 @@ sub _ReplaceVariablesInPermission {
                     }
                 }
 
+                $Self->{RelevantOrganisationID} ||= $Contact{PrimaryOrganisationID};
+                if (
+                    $Self->{RelevantOrganisationID} &&
+                    (grep {$Self->{RelevantOrganisationID} == $_} @{$Contact{OrganisationIDs} || []})
+                ) {
+                    $Contact{RelevantOrganisationID} = $Self->{RelevantOrganisationID};
+                    if ( $Contact{RelevantOrganisationID} ) {
+                        my %Organisation = $Kernel::OM->Get('Organisation')->OrganisationGet(
+                            ID => $Contact{RelevantOrganisationID},
+                        );
+                        if ( %Organisation ) {
+                            $Contact{RelevantOrganisation} = \%Organisation;
+                        }
+                    }
+                } else {
+                    $Contact{RelevantOrganisationID} = 'NOT_ALLOWED';
+                }
+
                 $User{Contact} = \%Contact;
             }
 
             # add roles
-            my @RoleIDs = $Kernel::OM->Get('User')->RoleList(
+            my @RoleIDs = $Kernel::OM->Get('Role')->UserRoleList(
                 UserID => $Self->{Authorization}->{UserID},
                 Valid  => 1,
             );
@@ -3511,8 +3591,8 @@ sub _ResolveVariableValue {
         return;
     }
 
-    # return undef if we have no data to work through
-    return if exists $Param{Data} && !$Param{Data};
+    # return "no value" if we have no data to work through
+    return 'NO_VALUE' if exists $Param{Data} && (!$Param{Data});
 
     my $Data = $Param{Data};
 
@@ -3526,7 +3606,9 @@ sub _ResolveVariableValue {
     }
 
     # get the value of $Attribute
-    $Data = $Data->{$Attribute};
+    if (IsHashRefWithData($Param{Data})) {
+        $Data = $Data->{$Attribute};
+    }
 
     if ( defined $ArrayIndex && IsArrayRef($Data) ) {
         $Data = $Data->[$ArrayIndex];
@@ -3848,41 +3930,75 @@ sub _GetCustomerUserVisibleObjectIds {
             my @RelevantIDs = split(/\s*,\s*/, $Param{RelevantOrganisationID} // $ContactData{PrimaryOrganisationID});
             # make sure given id belongs to contact, else given id is not usable
             my @ValidRelevantIDs;
+            my %ContactOrgaIDs = map{ $_ => 1 } @{ $ContactData{OrganisationIDs} };
             for my $RelevantID (@RelevantIDs) {
-                if ( grep { $_ eq $RelevantID } @{ $ContactData{OrganisationIDs} } ) {
-                    push(@ValidRelevantIDs, $RelevantID);
-                }
+                next if ( !$ContactOrgaIDs{$RelevantID} );
+                push(@ValidRelevantIDs, $RelevantID);
             }
             $ContactData{RelevantOrganisationID} = \@ValidRelevantIDs if (scalar @ValidRelevantIDs);
 
+            # inform API caching about a new dependency
+            my $CacheObjectType = $Param{ObjectType} eq 'TicketArticle' ? 'Ticket' : $Param{ObjectType};
+            $Self->AddCacheDependency(Type => 'ObjectSearch_' . $CacheObjectType);
+
             if ($Param{ObjectType} eq 'ConfigItem') {
-                return $Kernel::OM->Get('ITSMConfigItem')->GetAssignedConfigItemsForObject(
-                    %Param,
-                    ObjectType => 'Contact',
-                    Object     => \%ContactData,
-                    UserID     => $Self->{Authorization}->{UserID}
+                my @IDs = $Kernel::OM->Get('ObjectSearch')->Search(
+                    Search => {
+                        AND => [
+                            {
+                                Field => 'AssignedContact',
+                                Operator => 'EQ',
+                                Type     => 'NUMERIC',
+                                Value    => $ContactData{ID}
+                            },
+                            {
+                                Field => 'AssignedOrganisation',
+                                Operator => 'IN',
+                                Type     => 'NUMERIC',
+                                Value    => $ContactData{RelevantOrganisationID} || $ContactData{PrimaryOrganisationID}
+                            }
+                        ]
+                    },
+                    Result     => 'ARRAY',
+                    ObjectType => 'ConfigItem',
+                    UserID     => $Self->{Authorization}->{UserID},
+                    UserType   => $Self->{Authorization}->{UserType}
                 );
+                return scalar(@IDs) ? \@IDs : [];
             } elsif ($Param{ObjectType} eq 'Ticket') {
                 return $Kernel::OM->Get('Ticket')->GetAssignedTicketsForObject(
                     %Param,
                     ObjectType => 'Contact',
                     Object     => \%ContactData,
-                    UserID     => $Self->{Authorization}->{UserID}
+                    UserID     => $Self->{Authorization}->{UserID},
+                    UserType   => $Self->{Authorization}->{UserType},
                 );
             } elsif ($Param{ObjectType} eq 'TicketArticle') {
                 return $Kernel::OM->Get('Ticket')->GetAssignedArticlesForObject(
                     %Param,
                     ObjectType => 'Contact',
                     Object     => \%ContactData,
-                    UserID     => $Self->{Authorization}->{UserID}
+                    UserID     => $Self->{Authorization}->{UserID},
+                    UserType   => $Self->{Authorization}->{UserType},
                 );
             } elsif ($Param{ObjectType} eq 'FAQArticle') {
-                return $Kernel::OM->Get('FAQ')->GetAssignedFAQArticlesForObject(
-                    %Param,
-                    ObjectType => 'Contact',
-                    Object     => \%ContactData,
-                    UserID     => $Self->{Authorization}->{UserID}
+                my @IDs = $Kernel::OM->Get('ObjectSearch')->Search(
+                    Search => {
+                        AND => [
+                            {
+                                Field => 'AssignedContact',
+                                Operator => 'EQ',
+                                Type     => 'NUMERIC',
+                                Value    => $ContactData{ID}
+                            }
+                        ]
+                    },
+                    Result     => 'ARRAY',
+                    ObjectType => 'FAQArticle',
+                    UserID     => $Self->{Authorization}->{UserID},
+                    UserType   => $Self->{Authorization}->{UserType}
                 );
+                return scalar(@IDs) ? \@IDs : [];
             }
         }
     }

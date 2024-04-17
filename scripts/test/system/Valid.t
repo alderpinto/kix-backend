@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -19,11 +19,6 @@ my $ConfigObject = $Kernel::OM->Get('Config');
 my $ValidObject  = $Kernel::OM->Get('Valid');
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 # tests the method to make sure there is at least 2 registries: valid - invalid
@@ -87,8 +82,6 @@ for my $ValidIDKey ( sort keys %ValidList ) {
         "Test ValidLookup $Counter - both IDs are equivalent.",
     );
 }
-
-# cleanup cache is done by RestoreDatabase
 
 1;
 

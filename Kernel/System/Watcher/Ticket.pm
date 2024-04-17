@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -114,7 +114,8 @@ sub WatcherAdd {
     $TicketObject->EventHandler(
         Event => 'TicketSubscribe',
         Data  => {
-            TicketID => $Param{ObjectID},
+            TicketID    => $Param{ObjectID},
+            WatchUserID => $Param{WatchUserID},
         },
         UserID => $Param{UserID},
     );
@@ -176,6 +177,7 @@ sub WatcherDelete {
         Event => 'TicketUnsubscribe',
         Data  => {
             TicketID => $Param{ObjectID},
+            WatchUserID => $Param{WatchUserID},
         },
         UserID => $Param{UserID},
     );

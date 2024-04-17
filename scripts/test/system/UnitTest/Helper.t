@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -90,46 +90,43 @@ $Self->False(
     'Rollback worked',
 );
 
-my $ConfigObject = $Kernel::OM->Get('Config');
 $Self->Is(
-    scalar $ConfigObject->Get('nonexisting_dummy'),
-    undef,
+    $Kernel::OM->Get('Config')->Get('CheckEmailAddresses'),
+    '1',
     "Config setting does not exist yet",
 );
 
-my $Value = q$1'"$;
-
 $Helper->ConfigSettingChange(
-    Valid => 1,
-    Key   => 'nonexisting_dummy',
-    Value => $Value,
+    Valid  => 1,
+    Key    => 'CheckEmailAddresses',
+    Value  => '0',
 );
 
 $Self->Is(
-    scalar $ConfigObject->Get('nonexisting_dummy'),
-    $Value,
+    $Kernel::OM->Get('Config')->Get('CheckEmailAddresses'),
+    '0',
     "Runtime config updated",
 );
 
 my $NewConfigObject = Kernel::Config->new();
 $Self->Is(
-    scalar $NewConfigObject->Get('nonexisting_dummy'),
-    $Value,
+    $NewConfigObject->Get('CheckEmailAddresses'),
+    '0',
     "System config updated",
 );
 
-$Helper->ConfigSettingCleanup();
+$Helper->Rollback();
 
 $NewConfigObject = Kernel::Config->new();
 $Self->Is(
-    scalar $NewConfigObject->Get('nonexisting_dummy'),
-    undef,
+    $NewConfigObject->Get('CheckEmailAddresses'),
+    '1',
     "System config reset",
 );
 
 $Self->Is(
-    scalar $ConfigObject->Get('nonexisting_dummy'),
-    $Value,
+    $Kernel::OM->Get('Config')->Get('CheckEmailAddresses'),
+    '0',
     "Runtime config still has the changed value, it will be destroyed at the end of every test",
 );
 

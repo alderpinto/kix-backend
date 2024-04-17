@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -59,6 +59,18 @@ sub new {
     $Self->Describe();
 
     return $Self;
+}
+
+=item Init()
+
+Initialize this macro action module.
+
+=cut
+
+sub Init {
+    my ( $Self, %Param ) = @_;
+
+    return 1;
 }
 
 =item Describe()
@@ -202,6 +214,55 @@ sub SetResult {
     return 1;
 }
 
+=item SetRepeatExecution()
+
+Set repeat execution of backend.
+
+Example:
+    $Self->SetRepeatExecution();
+
+=cut
+
+sub SetRepeatExecution {
+    my ( $Self, %Param ) = @_;
+
+    $Self->{RepeatExecution} = 1;
+
+    return 1;
+}
+
+=item UnsetRepeatExecution()
+
+Unset repeat execution of backend.
+
+Example:
+    $Self->UnsetRepeatExecution();
+
+=cut
+
+sub UnsetRepeatExecution {
+    my ( $Self, %Param ) = @_;
+
+    $Self->{RepeatExecution} = 0;
+
+    return 1;
+}
+
+=item RepeatExecution()
+
+Returns state of repeat execution of backend.
+
+Example:
+    $Self->RepeatExecution();
+
+=cut
+
+sub RepeatExecution {
+    my ( $Self, %Param ) = @_;
+
+    return $Self->{RepeatExecution};
+}
+
 =item ValidateConfig()
 
 Validates the required parameters of the config.
@@ -218,10 +279,12 @@ sub ValidateConfig {
 
     # check needed stuff
     if ( !$Param{Config} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Got no Config!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Got no Config!',
+            );
+        }
         return;
     }
 
@@ -234,10 +297,12 @@ sub ValidateConfig {
                 my %PossibleValues = map { $_ => 1 } @{$Self->{Definition}->{Options}->{$Option}->{PossibleValues}};
                 foreach my $Value ( IsArrayRefWithData($Param{Config}->{$Option}) ? @{$Param{Config}->{$Option}} : ( $Param{Config}->{$Option} ) ) {
                     if ( !$PossibleValues{$Value} ) {
-                        $Kernel::OM->Get('Log')->Log(
-                            Priority => 'error',
-                            Message  => "Invalid value \"$Value\" for parameter \"$Option\"! Possible values: " . join(', ', @{$Self->{Definition}->{Options}->{$Option}->{PossibleValues}}),
-                        );
+                        if ( !$Param{Silent} ) {
+                            $Kernel::OM->Get('Log')->Log(
+                                Priority => 'error',
+                                Message  => "Invalid value \"$Value\" for parameter \"$Option\"! Possible values: " . join(', ', @{$Self->{Definition}->{Options}->{$Option}->{PossibleValues}}),
+                            );
+                        }
                         return;
                     }
                 }
@@ -247,10 +312,12 @@ sub ValidateConfig {
         next if !$Self->{Definition}->{Options}->{$Option}->{Required};
 
         if ( !exists $Param{Config}->{$Option} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Required parameter \"$Option\" missing!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Required parameter \"$Option\" missing!",
+                );
+            }
             return;
         }
     }
@@ -310,10 +377,11 @@ replaces palceholders
 Example:
     my $Value = $Self->_ReplaceValuePlaceholder(
         Value     => $SomeValue,
-        Richtext  => 0             # optional: 0 will be used if omitted
-        Translate => 0             # optional: 0 will be used if omitted
-        UserID    => 1             # optional: 1 will be used if omitted
-        Data      => {}            # optional: {} will be used
+        Richtext  => 0,                  # optional: 0 will be used if omitted
+        Translate => 0,                  # optional: 0 will be used if omitted
+        UserID    => 1,                  # optional: 1 will be used if omitted
+        Data      => {},                 # optional: {} will be used
+        HandleKeyLikeObjectValue => 0    # optional: 0 will be used if omitted - if 1 and "Value" is just a "_Key" placeholder it will considered just like a "_ObjectValue" placeholder (needed for backward compatibility)
     );
 
 =cut
@@ -330,6 +398,17 @@ sub _ReplaceValuePlaceholder {
             %{$Param{Data}}
         }
     };
+    if(IsHashRefWithData($Param{AdditionalData})) {
+        $Data = {
+            %{$Data},
+            %{$Param{AdditionalData}}
+        }
+    };
+
+    # handle DF "_Key" placeholder like "_ObjectValue" if value is just this placeholder (no surrounding text) and param is active
+    if ($Param{HandleKeyLikeObjectValue} && $Param{Value} =~ m/^<KIX_(?:\w|^>)+_DynamicField_(?:\w+?)_Key>$/) {
+        $Param{Value} =~ s/(.+)Key>/${1}ObjectValue>/;
+    }
 
     return $Kernel::OM->Get('TemplateGenerator')->ReplacePlaceHolder(
         Text            => $Param{Value},
@@ -339,8 +418,10 @@ sub _ReplaceValuePlaceholder {
         Data            => $Data,
         ReplaceNotFound => $Param{ReplaceNotFound},
 
-        # FIXME: use object id as ticket id, but it could be another object (needed if no event data is given)!
-        TicketID  => $Self->{RootObjectID} || $Param{ObjectID}
+        # FIXME: use correct object id for typ (could be a sub macro of other type)
+        # or get and use job type by JobID in $Self
+        ObjectType => $Param{MacroType},
+        ObjectID   => $Self->{RootObjectID} || $Param{ObjectID}
     );
 }
 

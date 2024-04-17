@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -145,15 +145,6 @@ sub Run {
         }
     }
 
-    if ( !$Ticket{Calendar} && $Ticket{QueueID} ) {
-        my %Queue = $Self->{QueueObject}->QueueGet(
-            ID => $Ticket{QueueID},
-        );
-        if ( $Queue{Calendar} ) {
-            $Ticket{Calendar} = $Queue{Calendar};
-        }
-    }
-
     # do automatic QueueMove
     if (
         $WFConfigRef->{QueueMove}
@@ -204,7 +195,7 @@ sub Run {
                 my $NextQueueID = $Self->{QueueObject}
                     ->QueueLookup( Queue => $WFConfigRef->{FallbackOnErrorQueue} );
                 if ($NextQueueID) {
-                    $Self->{TicketObject}->MoveTicket(
+                    $Self->{TicketObject}->TicketQueueSet(
                         QueueID  => $NextQueueID,
                         TicketID => $Param{Data}->{TicketID},
                         UserID   => 1,
@@ -221,7 +212,7 @@ sub Run {
                 my %NextState = $Self->{StateObject}
                     ->StateGet( Name => $WFConfigRef->{FallbackOnErrorState} );
                 if ( $NextState{ID} ) {
-                    $Self->{TicketObject}->StateSet(
+                    $Self->{TicketObject}->TicketStateSet(
                         StateID  => $NextState{ID},
                         TicketID => $Param{Data}->{TicketID},
                         UserID   => 1,
@@ -304,7 +295,7 @@ Furthermore this ticket has been moved to "'
             }
 
             # set new state...
-            my $StateSet = $Self->{TicketObject}->StateSet(
+            my $StateSet = $Self->{TicketObject}->TicketStateSet(
                 StateID  => $NextState{ID},
                 TicketID => $Param{Data}->{TicketID},
                 UserID   => 1,

@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -56,124 +56,6 @@ sub new {
     return $Self;
 }
 
-=item ObjectAttributesGet()
-
-get the object attributes of an object as a ref to an array of hash references
-
-    my $Attributes = $ObjectBackend->ObjectAttributesGet(
-        UserID => 1,
-    );
-
-=cut
-
-sub ObjectAttributesGet {
-    my ( $Self, %Param ) = @_;
-
-    # check needed object
-    if ( !$Param{UserID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Need UserID!',
-        );
-        return;
-    }
-
-    # get class list
-    my $ClassList = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => 'ITSM::ConfigItem::Class',
-    ) || {};
-
-    # KIX4OTRS-capeIT
-    my $DeploymentStateDataRef = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => 'ITSM::ConfigItem::DeploymentState',
-        Valid => 1,
-    );
-    my $IncidentStateDataRef = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => 'ITSM::Core::IncidentState',
-        Valid => 1,
-    );
-
-    # EO KIX4OTRS-capeIT
-
-    my $Attributes = [
-        {
-            Key   => 'ClassID',
-            Name  => 'Class',
-            Input => {
-                Type         => 'Selection',
-                Data         => $ClassList,
-                Required     => 1,
-                Translation  => 0,
-                PossibleNone => 1,
-            },
-        },
-        {
-            Key   => 'CountMax',
-            Name  => 'Maximum number of one element',
-            Input => {
-                Type         => 'Text',
-                ValueDefault => '10',
-                Required     => 1,
-                Regex        => qr{ \A \d+ \z }xms,
-                Translation  => 0,
-                Size         => 5,
-                MaxLength    => 5,
-                DataType     => 'IntegerBiggerThanZero',
-            },
-        },
-        {
-            Key   => 'EmptyFieldsLeaveTheOldValues',
-            Name  => 'Empty fields indicate that the current values are kept',
-            Input => {
-                Type => 'Checkbox',
-            },
-        },
-
-        # KIX4OTRS-capeIT
-        {
-            Key   => 'DefaultDeploymentState',
-            Name  => 'Default Deployment State',
-            Input => {
-                Type         => 'Selection',
-                Data         => $DeploymentStateDataRef,
-                Required     => 1,
-                Translation  => 0,
-                PossibleNone => 1,
-            },
-        },
-        {
-            Key   => 'DefaultIncidentState',
-            Name  => 'Default Incident State',
-            Input => {
-                Type         => 'Selection',
-                Data         => $IncidentStateDataRef,
-                Required     => 1,
-                Translation  => 0,
-                PossibleNone => 1,
-            },
-        },
-        {
-            Key   => 'DefaultName',
-            Name  => 'Default Name',
-            Input => {
-                Type         => 'Text',
-                ValueDefault => '',
-                Required     => 0,
-                Regex        => '',
-                Translation  => 0,
-                Size         => 30,
-                MaxLength    => 250,
-
-                # DataType     => 'String',
-            },
-        },
-
-        # EO KIX4OTRS-capeIT
-    ];
-
-    return $Attributes;
-}
-
 =item MappingObjectAttributesGet()
 
 get the mapping attributes of an object as array/hash reference
@@ -191,6 +73,7 @@ sub MappingObjectAttributesGet {
     # check needed stuff
     for my $Argument (qw(TemplateID UserID)) {
         if ( !$Param{$Argument} ) {
+            return if $Param{Silent};
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -203,6 +86,7 @@ sub MappingObjectAttributesGet {
     my $ObjectData = $Kernel::OM->Get('ImportExport')->ObjectDataGet(
         TemplateID => $Param{TemplateID},
         UserID     => $Param{UserID},
+        Silent     => $Param{Silent}
     );
 
     return [] if !$ObjectData;
@@ -212,6 +96,7 @@ sub MappingObjectAttributesGet {
     # get definition
     my $XMLDefinition = $Kernel::OM->Get('ITSMConfigItem')->DefinitionGet(
         ClassID => $ObjectData->{ClassID},
+        Silent  => $Param{Silent}
     );
 
     return [] if !$XMLDefinition;
@@ -243,6 +128,7 @@ sub MappingObjectAttributesGet {
         XMLDefinition => $XMLDefinition->{DefinitionRef},
         ElementList   => $ElementList,
         CountMaxLimit => $ObjectData->{CountMax} || 10,
+        Silent        => $Param{Silent}
     );
 
     my $Attributes = [
@@ -393,6 +279,7 @@ sub ExportDataGet {
     # check needed stuff
     for my $Argument (qw(TemplateID UserID)) {
         if ( !$Param{$Argument} ) {
+            return if $Param{Silent};
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -405,10 +292,17 @@ sub ExportDataGet {
     my $ObjectData = $Kernel::OM->Get('ImportExport')->ObjectDataGet(
         TemplateID => $Param{TemplateID},
         UserID     => $Param{UserID},
+        Silent     => $Param{Silent}
     );
 
     # check object data
-    if ( !$ObjectData || ref $ObjectData ne 'HASH' || !$ObjectData->{ClassID} ) {
+    if (
+        !$ObjectData
+        || ref $ObjectData ne 'HASH'
+        || !$ObjectData->{ClassID}
+    ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "No valid object data found for the template id $Param{TemplateID}",
@@ -418,13 +312,18 @@ sub ExportDataGet {
 
     # get class list
     my $ClassList = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => 'ITSM::ConfigItem::Class',
+        Class  => 'ITSM::ConfigItem::Class',
+        Silent => $Param{Silent}
     );
 
     return if !$ClassList || ref $ClassList ne 'HASH';
 
     # check the class id
-    if ( !$ObjectData->{ClassID} || !$ClassList->{ $ObjectData->{ClassID} } ) {
+    if (
+        !$ObjectData->{ClassID}
+        || !$ClassList->{ $ObjectData->{ClassID} }
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -437,10 +336,16 @@ sub ExportDataGet {
     my $MappingList = $Kernel::OM->Get('ImportExport')->MappingList(
         TemplateID => $Param{TemplateID},
         UserID     => $Param{UserID},
+        Silent     => $Param{Silent}
     );
 
     # check the mapping list
-    if ( !$MappingList || ref $MappingList ne 'ARRAY' || !@{$MappingList} ) {
+    if (
+        !$MappingList
+        || ref $MappingList ne 'ARRAY'
+        || !@{$MappingList}
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -457,10 +362,15 @@ sub ExportDataGet {
         my $MappingObjectData = $Kernel::OM->Get('ImportExport')->MappingObjectDataGet(
             MappingID => $MappingID,
             UserID    => $Param{UserID},
+            Silent    => $Param{Silent}
         );
 
         # check mapping object data
-        if ( !$MappingObjectData || ref $MappingObjectData ne 'HASH' ) {
+        if (
+            !$MappingObjectData
+            || ref $MappingObjectData ne 'HASH'
+        ) {
+            return if $Param{Silent};
 
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
@@ -476,6 +386,7 @@ sub ExportDataGet {
     my $SearchData = $Kernel::OM->Get('ImportExport')->SearchDataGet(
         TemplateID => $Param{TemplateID},
         UserID     => $Param{UserID},
+        Silent     => $Param{Silent}
     );
 
     return if !$SearchData || ref $SearchData ne 'HASH';
@@ -486,7 +397,11 @@ sub ExportDataGet {
     );
 
     # check deployment state list
-    if ( !$DeplStateList || ref $DeplStateList ne 'HASH' ) {
+    if (
+        !$DeplStateList
+        || ref $DeplStateList ne 'HASH'
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -497,11 +412,16 @@ sub ExportDataGet {
 
     # get incident state list
     my $InciStateList = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => 'ITSM::Core::IncidentState',
+        Class  => 'ITSM::Core::IncidentState',
+        Silent => $Param{Silent}
     );
 
     # check incident state list
-    if ( !$InciStateList || ref $InciStateList ne 'HASH' ) {
+    if (
+        !$InciStateList
+        || ref $InciStateList ne 'HASH'
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -514,58 +434,100 @@ sub ExportDataGet {
     my $DefinitionData = $Kernel::OM->Get('ITSMConfigItem')->DefinitionGet(
         ClassID => $ObjectData->{ClassID},
         UserID  => $Param{UserID},
+        Silent  => $Param{Silent}
     );
 
-    my %SearchParams;
+    my @SearchParams;
 
     # add number to the search params
     if ( $SearchData->{Number} ) {
-        $SearchParams{Number} = delete $SearchData->{Number};
+        my $Number = delete $SearchData->{Number};
+        push(
+            @SearchParams,
+            {
+                Field    => 'Number',
+                Operator => 'IN',
+                Type     => 'STRING',
+                Value    => IsArrayRef($Number) ? $Number : [$Number]
+            }
+        );
     }
 
     # add name to the search params
     if ( $SearchData->{Name} ) {
-        $SearchParams{Name} = delete $SearchData->{Name};
+        my $Name = delete $SearchData->{Name};
+        push(
+            @SearchParams,
+            {
+                Field    => 'Name',
+                Operator => 'EQ',
+                Type     => 'STRING',
+                Value    => $Name
+            }
+        );
     }
 
     # add deployment state to the search params
     if ( $SearchData->{DeplStateIDs} ) {
-        my @DeplStateIDs = split '#####', $SearchData->{DeplStateIDs};
-        $SearchParams{DeplStateIDs} = \@DeplStateIDs;
+        my @DeplStateIDs = split(/#####/sm , $SearchData->{DeplStateIDs});
         delete $SearchData->{DeplStateIDs};
+        push(
+            @SearchParams,
+            {
+                Field    => 'DeplStateIDs',
+                Operator => 'IN',
+                Type     => 'NUMERIC',
+                Value    => \@DeplStateIDs
+            }
+        );
     }
 
     # add incident state to the search params
     if ( $SearchData->{InciStateIDs} ) {
-        my @InciStateIDs = split '#####', $SearchData->{InciStateIDs};
-        $SearchParams{InciStateIDs} = \@InciStateIDs;
+        my @InciStateIDs = split(/#####/sm , $SearchData->{InciStateIDs});
         delete $SearchData->{InciStateIDs};
+        push(
+            @SearchParams,
+            {
+                Field    => 'InciStateIDs',
+                Operator => 'IN',
+                Type     => 'NUMERIC',
+                Value    => \@InciStateIDs
+            }
+        );
     }
 
     # add all XML data to the search params
-    my @SearchParamsWhat;
     $Self->_ExportXMLSearchDataPrepare(
         XMLDefinition => $DefinitionData->{DefinitionRef},
-        What          => \@SearchParamsWhat,
-        SearchData    => $SearchData,
+        What          => \@SearchParams,
+        SearchData    => $SearchData
     );
 
-    # add XML search params to the search hash
-    if (@SearchParamsWhat) {
-        $SearchParams{What} = \@SearchParamsWhat;
-    }
+    push(
+        @SearchParams,
+        {
+            Field    => 'ClassID',
+            Operator => 'IN',
+            Type     => 'NUMERIC',
+            Value    => [ $ObjectData->{ClassID} ]
+        }
+    );
 
     # search the config items
-    my $ConfigItemList = $Kernel::OM->Get('ITSMConfigItem')->ConfigItemSearchExtended(
-        %SearchParams,
-        ClassIDs              => [ $ObjectData->{ClassID} ],
-        PreviousVersionSearch => 0,
-        UserID                => $Param{UserID},
+    my @ConfigItemList = $Kernel::OM->Get('ObjectSearch')->Search(
+        ObjectType => 'ConfigItem',
+        Result     => 'ARRAY',
+        Search     => {
+            AND => \@SearchParams
+        },
+        UserID     => $Param{UserID},
+        Silent     => $Param{Silent}
     );
 
     my @ExportData;
     CONFIGITEMID:
-    for my $ConfigItemID ( @{$ConfigItemList} ) {
+    for my $ConfigItemID ( @ConfigItemList ) {
 
         # get last version
         my $VersionData = $Kernel::OM->Get('ITSMConfigItem')->VersionGet(
@@ -593,7 +555,7 @@ sub ExportDataGet {
 
             # handle empty key
             if ( !$Key ) {
-                push @Item, '';
+                push @Item, q{};
                 next MAPPINGOBJECT;
             }
 
@@ -684,6 +646,7 @@ sub ImportDataSave {
     # check needed stuff
     for my $Argument (qw(TemplateID ImportDataRow Counter UserID)) {
         if ( !$Param{$Argument} ) {
+            return if $Param{Silent};
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -694,6 +657,7 @@ sub ImportDataSave {
 
     # check import data row
     if ( ref $Param{ImportDataRow} ne 'ARRAY' ) {
+        return if $Param{Silent};
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message =>
@@ -707,10 +671,12 @@ sub ImportDataSave {
     my $ObjectData = $Kernel::OM->Get('ImportExport')->ObjectDataGet(
         TemplateID => $Param{TemplateID},
         UserID     => $Param{UserID},
+        Silent     => $Param{Silent}
     );
 
     # check object data
     if ( !$ObjectData || ref $ObjectData ne 'HASH' ) {
+        return if $Param{Silent};
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message =>
@@ -725,11 +691,13 @@ sub ImportDataSave {
 
     # get class list
     my $ClassList = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => 'ITSM::ConfigItem::Class',
+        Class  => 'ITSM::ConfigItem::Class',
+        Silent => $Param{Silent}
     );
 
     # check class list
     if ( !$ClassList || ref $ClassList ne 'HASH' ) {
+        return if $Param{Silent};
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message =>
@@ -740,7 +708,11 @@ sub ImportDataSave {
     }
 
     # check the class id
-    if ( !$ObjectData->{ClassID} || !$ClassList->{ $ObjectData->{ClassID} } ) {
+    if (
+        !$ObjectData->{ClassID}
+        || !$ClassList->{ $ObjectData->{ClassID} }
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -755,10 +727,16 @@ sub ImportDataSave {
     my $MappingList = $Kernel::OM->Get('ImportExport')->MappingList(
         TemplateID => $Param{TemplateID},
         UserID     => $Param{UserID},
+        Silent     => $Param{Silent}
     );
 
     # check the mapping list
-    if ( !$MappingList || ref $MappingList ne 'ARRAY' || !@{$MappingList} ) {
+    if (
+        !$MappingList
+        || ref $MappingList ne 'ARRAY'
+        || !@{$MappingList}
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -777,10 +755,15 @@ sub ImportDataSave {
         my $MappingObjectData = $Kernel::OM->Get('ImportExport')->MappingObjectDataGet(
             MappingID => $MappingID,
             UserID    => $Param{UserID},
+            Silent    => $Param{Silent}
         );
 
         # check mapping object data
-        if ( !$MappingObjectData || ref $MappingObjectData ne 'HASH' ) {
+        if (
+            !$MappingObjectData
+            || ref $MappingObjectData ne 'HASH'
+        ) {
+            return if $Param{Silent};
 
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
@@ -805,6 +788,7 @@ sub ImportDataSave {
 
         # check if identifier already exists
         if ( $Identifier{ $MappingObjectData->{Key} } ) {
+            return if $Param{Silent};
 
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
@@ -820,6 +804,7 @@ sub ImportDataSave {
 
         next MAPPINGOBJECTDATA if $MappingObjectData->{Key} && $Param{ImportDataRow}->[$RowIndex];
 
+        return if $Param{Silent};
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message =>
@@ -839,7 +824,11 @@ sub ImportDataSave {
     );
 
     # check deployment state list
-    if ( !$DeplStateList || ref $DeplStateList ne 'HASH' ) {
+    if (
+        !$DeplStateList
+        || ref $DeplStateList ne 'HASH'
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -855,11 +844,16 @@ sub ImportDataSave {
 
     # get incident state list
     my $InciStateList = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => 'ITSM::Core::IncidentState',
+        Class  => 'ITSM::Core::IncidentState',
+        Silent => $Param{Silent}
     );
 
     # check incident state list
-    if ( !$InciStateList || ref $InciStateList ne 'HASH' ) {
+    if (
+        !$InciStateList
+        || ref $InciStateList ne 'HASH'
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -877,10 +871,15 @@ sub ImportDataSave {
     my $DefinitionData = $Kernel::OM->Get('ITSMConfigItem')->DefinitionGet(
         ClassID => $ObjectData->{ClassID},
         UserID  => $Param{UserID},
+        Silent  => $Param{Silent}
     );
 
     # check definition data
-    if ( !$DefinitionData || ref $DefinitionData ne 'HASH' ) {
+    if (
+        !$DefinitionData
+        || ref $DefinitionData ne 'HASH'
+    ) {
+        return if $Param{Silent};
 
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -895,25 +894,43 @@ sub ImportDataSave {
     my $ConfigItemID;
     if (%Identifier) {
 
-        my %SearchParams;
+        my @SearchParams;
 
         # add number to the search params
         if ( $Identifier{Number} ) {
-            $SearchParams{Number} = delete $Identifier{Number};
+            my $Number = delete $Identifier{Number};
+            push(
+                @SearchParams,
+                {
+                    Field    => 'Number',
+                    Operator => 'IN',
+                    Type     => 'STRING',
+                    Value    => IsArrayRef($Number) ? $Number : [$Number]
+                }
+            );
         }
 
         # add name to the search params
         if ( $Identifier{Name} ) {
-            $SearchParams{Name} = delete $Identifier{Name};
+            my $Name = delete $Identifier{Name};
+            push(
+                @SearchParams,
+                {
+                    Field    => 'Name',
+                    Operator => 'EQ',
+                    Type     => 'STRING',
+                    Value    => $Name
+                }
+            );
         }
 
         # add deployment state to the search params
         if ( $Identifier{DeplState} ) {
-
             # extract deployment state id
-            my $DeplStateID = $DeplStateListReverse{ $Identifier{DeplState} } || '';
+            my $DeplStateID = $DeplStateListReverse{ $Identifier{DeplState} } || q{};
 
             if ( !$DeplStateID ) {
+                return if $Param{Silent};
 
                 $Kernel::OM->Get('Log')->Log(
                     Priority => 'error',
@@ -923,8 +940,15 @@ sub ImportDataSave {
                 );
                 return;
             }
-
-            $SearchParams{DeplStateIDs} = [$DeplStateID];
+            push(
+                @SearchParams,
+                {
+                    Field    => 'DeplStateIDs',
+                    Operator => 'IN',
+                    Type     => 'NUMERIC',
+                    Value    => [$DeplStateID]
+                }
+            );
             delete $Identifier{DeplState};
         }
 
@@ -932,9 +956,10 @@ sub ImportDataSave {
         if ( $Identifier{InciState} ) {
 
             # extract incident state id
-            my $InciStateID = $InciStateListReverse{ $Identifier{InciState} } || '';
+            my $InciStateID = $InciStateListReverse{ $Identifier{InciState} } || q{};
 
             if ( !$InciStateID ) {
+                return if $Param{Silent};
 
                 $Kernel::OM->Get('Log')->Log(
                     Priority => 'error',
@@ -944,34 +969,49 @@ sub ImportDataSave {
                 );
                 return;
             }
-
-            $SearchParams{InciStateIDs} = [$InciStateID];
+            push(
+                @SearchParams,
+                {
+                    Field    => 'InciStateIDs',
+                    Operator => 'IN',
+                    Type     => 'NUMERIC',
+                    Value    => [$InciStateID]
+                }
+            );
             delete $Identifier{InciState};
         }
 
         # add all XML data to the search params
-        my @SearchParamsWhat;
         $Self->_ImportXMLSearchDataPrepare(
             XMLDefinition => $DefinitionData->{DefinitionRef},
-            What          => \@SearchParamsWhat,
-            Identifier    => \%Identifier,
+            What          => \@SearchParams,
+            Identifier    => \%Identifier
         );
 
-        # add XML search params to the search hash
-        if (@SearchParamsWhat) {
-            $SearchParams{What} = \@SearchParamsWhat;
-        }
+        push (
+            @SearchParams,
+            {
+                Field    => 'ClassID',
+                Operator => 'IN',
+                Type     => 'NUMERIC',
+                Value    => [ $ObjectData->{ClassID} ]
+            }
+        );
 
         # search existing config item with the same identifiers
-        my $ConfigItemList = $Kernel::OM->Get('ITSMConfigItem')->ConfigItemSearchExtended(
-            %SearchParams,
-            ClassIDs              => [ $ObjectData->{ClassID} ],
-            PreviousVersionSearch => 0,
-            UsingWildcards        => 0,
-            UserID                => $Param{UserID},
+        my @ConfigItemList = $Kernel::OM->Get('ObjectSearch')->Search(
+            ObjectType => 'ConfigItem',
+            Result     => 'ARRAY',
+            Search     => {
+                AND => \@SearchParams
+            },
+            UsingWildcards => 0,
+            UserID         => $Param{UserID},
+            Silent         => $Param{Silent}
         );
 
-        if ( scalar @{$ConfigItemList} > 1 ) {
+        if ( scalar(@ConfigItemList) > 1 ) {
+            return if $Param{Silent};
 
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
@@ -982,7 +1022,7 @@ sub ImportDataSave {
             return;
         }
 
-        $ConfigItemID = $ConfigItemList->[0];
+        $ConfigItemID = $ConfigItemList[0];
     }
 
     # get version data of the config item
@@ -992,6 +1032,7 @@ sub ImportDataSave {
         # get latest version
         $VersionData = $Kernel::OM->Get('ITSMConfigItem')->VersionGet(
             ConfigItemID => $ConfigItemID,
+            Silent       => $Param{Silent}
         );
 
         # remove empty xml data
@@ -1004,9 +1045,9 @@ sub ImportDataSave {
         }
     }
 
-    my $DefaultInciStateID = $ObjectData->{DefaultIncidentState}   || '';
-    my $DefaultDeplStateID = $ObjectData->{DefaultDeploymentState} || '';
-    my $DefaultName        = $ObjectData->{DefaultName}            || '';
+    my $DefaultInciStateID = $ObjectData->{DefaultIncidentState}   || q{};
+    my $DefaultDeplStateID = $ObjectData->{DefaultDeploymentState} || q{};
+    my $DefaultName        = $ObjectData->{DefaultName}            || q{};
 
     # set up fields in VersionData and in the XML attributes
     my %XMLData2D;
@@ -1017,13 +1058,9 @@ sub ImportDataSave {
         my $Key   = $MappingObjectData->{Key};
         my $Value = $Param{ImportDataRow}->[ $RowIndex++ ];
 
-        if ( $Key eq 'Number' ) {
-
-            # do nothing
-            # Import does not override the config item number
-        }
-        elsif ( $Key eq 'Name' ) {
-
+        # Import does not override the config item number
+        next if $Key eq 'Number';
+        if ( $Key eq 'Name' ) {
             if ( !$Value && ( !$DefaultName || $EmptyFieldsLeaveTheOldValues ) ) {
 
                 # do nothing, keep the old value
@@ -1033,6 +1070,7 @@ sub ImportDataSave {
             }
             else {
                 if ( !$Value ) {
+                    return if $Param{Silent};
                     $Kernel::OM->Get('Log')->Log(
                         Priority => 'error',
                         Message =>
@@ -1057,8 +1095,9 @@ sub ImportDataSave {
             else {
 
                 # extract deployment state id
-                my $DeplStateID = $DeplStateListReverse{$Value} || '';
+                my $DeplStateID = $DeplStateListReverse{$Value} || q{};
                 if ( !$DeplStateID ) {
+                    return if $Param{Silent};
                     $Kernel::OM->Get('Log')->Log(
                         Priority => 'error',
                         Message =>
@@ -1083,8 +1122,9 @@ sub ImportDataSave {
             else {
 
                 # extract the deployment state id
-                my $InciStateID = $InciStateListReverse{$Value} || '';
+                my $InciStateID = $InciStateListReverse{$Value} || q{};
                 if ( !$InciStateID ) {
+                    return if $Param{Silent};
                     $Kernel::OM->Get('Log')->Log(
                         Priority => 'error',
                         Message =>
@@ -1113,10 +1153,13 @@ sub ImportDataSave {
         XMLDataPrev                  => $VersionData->{XMLData}->[1]->{Version}->[1],
         XMLData2D                    => \%XMLData2D,
         EmptyFieldsLeaveTheOldValues => $EmptyFieldsLeaveTheOldValues,
+        Silent                       => $Param{Silent}
     );
+
 
     # bail out, when the was a problem in _ImportXMLDataMerge()
     if ( !$MergeOk ) {
+        return if $Param{Silent};
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message =>
@@ -1146,6 +1189,7 @@ sub ImportDataSave {
             ConfigItemID => $ConfigItemID || 'NEW',
             ClassID      => $ObjectData->{ClassID},
             Name         => $VersionData->{Name},
+            Silent       => $Param{Silent}
         );
 
         # stop processing if the name is not unique
@@ -1154,12 +1198,14 @@ sub ImportDataSave {
             # build a string of all duplicate IDs
             my $NameDuplicatesString = join ', ', @{$NameDuplicates};
 
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message =>
-                    "The name $VersionData->{Name} is already in use by the ConfigItemID(s): "
-                    . $NameDuplicatesString,
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message =>
+                        "The name $VersionData->{Name} is already in use by the ConfigItemID(s): "
+                        . $NameDuplicatesString,
+                );
+            }
 
             # set the return code to also include the duplicate name
             $RetCode = "DuplicateName '$VersionData->{Name}'";
@@ -1176,6 +1222,7 @@ sub ImportDataSave {
         # get id of the latest version, for checking later whether a version was created
         my $VersionList = $Kernel::OM->Get('ITSMConfigItem')->VersionList(
             ConfigItemID => $ConfigItemID,
+            Silent       => $Param{Silent}
         ) || [];
         if ( scalar @{$VersionList} ) {
             $LatestVersionID = $VersionList->[-1];
@@ -1187,6 +1234,7 @@ sub ImportDataSave {
         $ConfigItemID = $Kernel::OM->Get('ITSMConfigItem')->ConfigItemAdd(
             ClassID => $ObjectData->{ClassID},
             UserID  => $Param{UserID},
+            Silent  => $Param{Silent}
         );
 
         if ( !$VersionData->{InciStateID} && $DefaultInciStateID ) {
@@ -1201,6 +1249,7 @@ sub ImportDataSave {
 
         # check the new config item id
         if ( !$ConfigItemID ) {
+            return if $Param{Silent};
 
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
@@ -1221,6 +1270,7 @@ sub ImportDataSave {
         InciStateID  => $VersionData->{InciStateID},
         XMLData      => $VersionData->{XMLData},
         UserID       => $Param{UserID},
+        Silent       => $Param{Silent}
     );
 
     # the import was successful, when we get a version id
@@ -1242,14 +1292,16 @@ sub ImportDataSave {
         $Kernel::OM->Get('ITSMConfigItem')->ConfigItemDelete(
             ConfigItemID => $ConfigItemID,
             UserID       => $Param{UserID},
+            Silent       => $Param{Silent}
         );
     }
 
-    # KIX4OTRS-capeIT
-    my $ErrMsgFromEvent = '';
+    my $ErrMsgFromEvent = q{};
     if ( ref($VersionID) eq 'HASH' && $VersionID->{Error} && $VersionID->{Message} ) {
         $ErrMsgFromEvent = $VersionID->{Message};
     }
+
+    return if $Param{Silent};
 
     $Kernel::OM->Get('Log')->Log(
         Priority => 'error',
@@ -1296,11 +1348,11 @@ sub _MappingObjectAttributesGet {
         for my $Count ( 1 .. $CountMax ) {
 
             # create key string
-            my $Key = $Item->{Key} . '::' . $Count;
+            my $Key = $Item->{Key} . q{::} . $Count;
 
             # add prefix to key
             if ( $Param{KeyPrefix} ) {
-                $Key = $Param{KeyPrefix} . '::' . $Key;
+                $Key = $Param{KeyPrefix} . q{::} . $Key;
             }
 
             # create value string
@@ -1308,12 +1360,12 @@ sub _MappingObjectAttributesGet {
 
             # add count if required
             if ( $CountMax > 1 || $Item->{Sub} ) {
-                $Value .= '::' . $Count;
+                $Value .= q{::} . $Count;
             }
 
             # add prefix to key
             if ( $Param{ValuePrefix} ) {
-                $Value = $Param{ValuePrefix} . '::' . $Value;
+                $Value = $Param{ValuePrefix} . q{::} . $Value;
             }
 
             # add row
@@ -1367,11 +1419,11 @@ sub _SearchAttributesGet {
         my $Name = $Item->{Name};
 
         if ( $Param{KeyPrefix} ) {
-            $Key = $Param{KeyPrefix} . '::' . $Key;
+            $Key = $Param{KeyPrefix} . q{::} . $Key;
         }
 
         if ( $Param{NamePrefix} ) {
-            $Name = $Param{NamePrefix} . '::' . $Name;
+            $Name = $Param{NamePrefix} . q{::} . $Name;
         }
 
         # add attribute, if marked as searchable
@@ -1456,7 +1508,7 @@ sub _ExportXMLSearchDataPrepare {
     for my $Item ( @{ $Param{XMLDefinition} } ) {
 
         # create key
-        my $Key = $Param{Prefix} ? $Param{Prefix} . '::' . $Item->{Key} : $Item->{Key};
+        my $Key = $Param{Prefix} ? $Param{Prefix} . q{::} . $Item->{Key} : $Item->{Key};
 
         # prepare value
         my $Values = $Kernel::OM->Get('ITSMConfigItem')->XMLExportSearchValuePrepare(
@@ -1467,12 +1519,15 @@ sub _ExportXMLSearchDataPrepare {
         if ($Values) {
 
             # create search key
-            my $SearchKey = $Key;
-            $SearchKey =~ s{ :: }{\'\}[%]\{\'}xmsg;
+            my $SearchKey = 'CurrentVersion.Data.' . $Key;
+            $SearchKey =~ s/::/./gsm;
 
             # create search hash
             my $SearchHash = {
-                '[1]{\'Version\'}[1]{\'' . $SearchKey . '\'}[%]{\'Content\'}' => $Values,
+                Field    => $SearchKey,
+                Operator => 'EQ',
+                Type     => 'STRING',
+                Value    => $Values
             };
 
             push @{ $Param{What} }, $SearchHash;
@@ -1516,9 +1571,9 @@ sub _ExportXMLDataPrepare {
     return if ref $Param{XMLData2D} ne 'HASH';
 
     if ( $Param{Prefix} ) {
-        $Param{Prefix} .= '::';
+        $Param{Prefix} .= q{::};
     }
-    $Param{Prefix} ||= '';
+    $Param{Prefix} ||= q{};
 
     ITEM:
     for my $Item ( @{ $Param{XMLDefinition} } ) {
@@ -1526,7 +1581,7 @@ sub _ExportXMLDataPrepare {
         for my $Counter ( 1 .. $Item->{CountMax} ) {
 
             # create key
-            my $Key = $Param{Prefix} . $Item->{Key} . '::' . $Counter;
+            my $Key = $Param{Prefix} . $Item->{Key} . q{::} . $Counter;
 
             # prepare value
             if (defined $Param{XMLData}->{ $Item->{Key} }->[$Counter]->{Content}) {
@@ -1578,7 +1633,7 @@ sub _ImportXMLSearchDataPrepare {
     for my $Item ( @{ $Param{XMLDefinition} } ) {
 
         # create key
-        my $Key = $Param{Prefix} ? $Param{Prefix} . '::\d+::' . $Item->{Key} : $Item->{Key};
+        my $Key = $Param{Prefix} ? $Param{Prefix} . '::' . $Item->{Key} : $Item->{Key};
         $Key .= '::\d+';
 
         my $IdentifierKey;
@@ -1600,23 +1655,17 @@ sub _ImportXMLSearchDataPrepare {
 
             if ($Value) {
 
-                # prepare key
-                my $Counter = 0;
-                while ( $IdentifierKey =~ m{ :: }xms ) {
-
-                    if ( $Counter % 2 ) {
-                        $IdentifierKey =~ s{ :: }{]\{'}xms;
-                    }
-                    else {
-                        $IdentifierKey =~ s{ :: }{'\}[}xms;
-                    }
-
-                    $Counter++;
-                }
+                # create search key
+                my $SearchKey = 'CurrentVersion.Data.' . $IdentifierKey;
+                $SearchKey =~ s/::\d+::/./gsm;
+                $SearchKey =~ s/::\d+//gsm;
 
                 # create search hash
                 my $SearchHash = {
-                    '[1]{\'Version\'}[1]{\'' . $IdentifierKey . ']{\'Content\'}' => $Value,
+                    Field    => $SearchKey,
+                    Operator => 'EQ',
+                    Type     => 'STRING',
+                    Value    => $Value
                 };
 
                 push @{ $Param{What} }, $SearchHash;
@@ -1666,7 +1715,7 @@ sub _ImportXMLDataMerge {
     my $XMLData = $Param{XMLDataPrev};
 
     # default value for prefix
-    $Param{Prefix} ||= '';
+    $Param{Prefix} ||= q{};
 
     ITEM:
     for my $Item ( @{ $Param{XMLDefinition} } ) {
@@ -1678,7 +1727,7 @@ sub _ImportXMLDataMerge {
         for my $Counter ( 1 .. $Item->{CountMax} ) {
 
             # create inputkey
-            my $Key = $Param{Prefix} . $Item->{Key} . '::' . $Counter;
+            my $Key = $Param{Prefix} . $Item->{Key} . q{::} . $Counter;
 
             # start recursion, if "Sub" was found
             if ( $Item->{Sub} ) {
@@ -1688,8 +1737,9 @@ sub _ImportXMLDataMerge {
                     XMLDefinition                => $Item->{Sub},
                     XMLData2D                    => $Param{XMLData2D},
                     XMLDataPrev                  => $XMLData->{ $Item->{Key} }->[ $Counter - $Offset ],
-                    Prefix                       => $Key . '::',
+                    Prefix                       => $Key . q{::},
                     EmptyFieldsLeaveTheOldValues => $Param{EmptyFieldsLeaveTheOldValues},
+                    Silent                       => $Param{Silent}
                 );
 
                 return if !$MergeOk;
@@ -1709,28 +1759,23 @@ sub _ImportXMLDataMerge {
                         splice(@{$XMLData->{ $Item->{Key} }}, ($Counter - $Offset), 1);
                         $Offset++;
                     }
-
-                    # if last counter and only positon 0 with "undef" is contained, remove it
-                    if (
-                        $Counter == $Item->{CountMax} && $XMLData->{ $Item->{Key} } &&
-                        scalar(@{$XMLData->{ $Item->{Key} }}) == 1
-                    ) {
-                        delete %{$XMLData}{ $Item->{Key} };
-                    }
                 }
                 next COUNTER;
             }
 
             # handling if an empty field is imported
-            if (!defined $Param{XMLData2D}->{$Key} || $Param{XMLData2D}->{$Key} eq '') {
+            if (
+                !defined $Param{XMLData2D}->{$Key}
+                || $Param{XMLData2D}->{$Key} eq q{}
+            ) {
 
                 # if current is "leaf"-attribute (has no children)
                 if ( !$Item->{Sub} ) {
 
                     # if there is no old value - use position for next
                     if (
-                        !IsArrayRefWithData($XMLData->{ $Item->{Key} }) ||
-                        !IsHashRefWithData($XMLData->{ $Item->{Key} }->[ $Counter - $Offset ])
+                        !IsArrayRefWithData($XMLData->{ $Item->{Key} })
+                        || !IsHashRefWithData($XMLData->{ $Item->{Key} }->[ $Counter - $Offset ])
                     ) {
                         $Offset++;
                     }
@@ -1756,8 +1801,8 @@ sub _ImportXMLDataMerge {
 
                     # if there is no (old) value and neither children - remove it and use position for next
                     if (
-                        !IsArrayRefWithData($XMLData->{ $Item->{Key} }) ||
-                        !IsHashRefWithData($XMLData->{ $Item->{Key} }->[ $Counter - $Offset ])
+                        !IsArrayRefWithData($XMLData->{ $Item->{Key} })
+                        || !IsHashRefWithData($XMLData->{ $Item->{Key} }->[ $Counter - $Offset ])
                     ) {
                         # empty container added during sub-handling above - remove it
                         splice(@{$XMLData->{ $Item->{Key} }}, ($Counter - $Offset), 1);
@@ -1767,8 +1812,9 @@ sub _ImportXMLDataMerge {
 
                 # if last counter and only positon 0 with "undef" is contained, remove it
                 if (
-                    $Counter == $Item->{CountMax} && $XMLData->{ $Item->{Key} } &&
-                    scalar(@{$XMLData->{ $Item->{Key} }}) == 1
+                    $Counter == $Item->{CountMax}
+                    && $XMLData->{ $Item->{Key} }
+                    && scalar(@{$XMLData->{ $Item->{Key} }}) == 1
                 ) {
                     delete %{$XMLData}{ $Item->{Key} };
                 }
@@ -1779,14 +1825,16 @@ sub _ImportXMLDataMerge {
 
             # dummy attribute does not need any value
             next COUNTER if (
-                IsHashRefWithData($Item->{Input}) &&
-                $Item->{Input}->{Type} && $Item->{Input}->{Type} eq 'Dummy'
+                IsHashRefWithData($Item->{Input})
+                && $Item->{Input}->{Type}
+                && $Item->{Input}->{Type} eq 'Dummy'
             );
 
             # prepare value
             my $Value = $Kernel::OM->Get('ITSMConfigItem')->XMLImportValuePrepare(
-                Item  => $Item,
-                Value => $Param{XMLData2D}->{$Key},
+                Item   => $Item,
+                Value  => $Param{XMLData2D}->{$Key},
+                Silent => $Param{Silent}
             );
 
             # let merge fail, when a value cannot be prepared
@@ -1794,7 +1842,10 @@ sub _ImportXMLDataMerge {
 
 
             # do not set value if empty but required in CI-class... (try with next imported value)
-            if ( !$Value && $Item->{Input}->{Required} ) {
+            if (
+                !$Value
+                && $Item->{Input}->{Required}
+            ) {
                 splice(@{$XMLData->{ $Item->{Key} }}, ($Counter - $Offset), 1);
                 $Offset++;
                 next COUNTER;
@@ -1802,6 +1853,13 @@ sub _ImportXMLDataMerge {
 
             # save the prepared value
             $XMLData->{ $Item->{Key} }->[ $Counter - $Offset ]->{Content} = $Value;
+        }
+
+        if (
+            $XMLData->{ $Item->{Key} }
+            && scalar(@{$XMLData->{ $Item->{Key} }}) == 1
+        ) {
+            delete %{$XMLData}{ $Item->{Key} };
         }
     }
 

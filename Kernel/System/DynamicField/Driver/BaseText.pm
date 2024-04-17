@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -112,8 +112,7 @@ sub ValueValidate {
         !$Param{SearchValidation}
         && IsArrayRefWithData( $Param{DynamicFieldConfig}->{Config}->{RegExList} )
         && IsStringWithData( $Param{Value} )
-        )
-    {
+    ) {
         # check regular expressions
         my @RegExList = @{ $Param{DynamicFieldConfig}->{Config}->{RegExList} };
 
@@ -121,13 +120,15 @@ sub ValueValidate {
         for my $RegEx (@RegExList) {
 
             if ( $Param{Value} !~ $RegEx->{Value} ) {
+                $Success = undef;
+                last if $Param{Silent};
+
                 $Kernel::OM->Get('Log')->Log(
                     Priority => 'error',
                     Message  => "The value '$Param{Value}' is not matching /"
                         . $RegEx->{Value} . "/ ("
                         . $RegEx->{ErrorMessage} . ")!",
                 );
-                $Success = undef;
                 last REGEXENTRY;
             }
         }
@@ -136,56 +137,21 @@ sub ValueValidate {
     return $Success;
 }
 
-sub SearchSQLGet {
+sub SearchSQLSearchFieldGet {
     my ( $Self, %Param ) = @_;
 
-    my %Operators = (
-        Equals            => '=',
-        GreaterThan       => '>',
-        GreaterThanEquals => '>=',
-        SmallerThan       => '<',
-        SmallerThanEquals => '<=',
-    );
-
-    # get database object
-    my $DBObject = $Kernel::OM->Get('DB');
-
-    if ( $Operators{ $Param{Operator} } ) {
-        my $SQL = " $Param{TableAlias}.value_text $Operators{$Param{Operator}} '";
-        $SQL .= $DBObject->Quote( $Param{SearchTerm} ) . "' ";
-        return $SQL;
-    }
-
-    my $SearchValue;
-    if ( $Param{Operator} eq 'Like' ) {
-        $SearchValue = "%$Param{SearchTerm}%";
-    } elsif ( $Param{Operator} eq 'StartsWith' ) {
-        $SearchValue = "$Param{SearchTerm}%";
-    } elsif ( $Param{Operator} eq 'EndsWith' ) {
-        $SearchValue = "%$Param{SearchTerm}";
-    }
-
-    if($SearchValue) {
-        my $SQL = $DBObject->QueryCondition(
-            Key   => "$Param{TableAlias}.value_text",
-            Value => $SearchValue,
-        );
-
-        return $SQL;
-    }
-
-    $Kernel::OM->Get('Log')->Log(
-        'Priority' => 'error',
-        'Message'  => "Unsupported Operator $Param{Operator}",
-    );
-
-    return;
+    return {
+        Column => "$Param{TableAlias}.value_text"
+    };
 }
 
-sub SearchSQLOrderFieldGet {
+sub SearchSQLSortFieldGet {
     my ( $Self, %Param ) = @_;
 
-    return "$Param{TableAlias}.value_text";
+    return {
+        Select  => ["$Param{TableAlias}.value_text"],
+        OrderBy => ["$Param{TableAlias}.value_text"]
+    };
 }
 
 sub DisplayValueRender {

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -14,16 +14,17 @@ use warnings;
 use Kernel::System::VariableCheck qw(:all);
 use vars qw(@ISA);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'CSV',
-    'Log',
-    'Main',
-    'Queue',
-    'State',
-    'Type',
-    'XML',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    CSV
+    Log
+    Main
+    Queue
+    State
+    Type
+    XML
 );
 
 =head1 NAME
@@ -163,7 +164,7 @@ sub TextModuleAdd {
         }
 
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'CREATE',
             Namespace => 'TextModule',
             ObjectID  => $ID,
@@ -317,7 +318,7 @@ sub TextModuleUpdate {
         );
 
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'UPDATE',
             Namespace => 'TextModule',
             ObjectID  => $Param{ID},
@@ -365,7 +366,7 @@ sub TextModuleDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'TextModule',
         ObjectID  => $Param{ID},

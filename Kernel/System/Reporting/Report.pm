@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -15,13 +15,14 @@ use Digest::MD5;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'User',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    User
+    Valid
 );
 
 =head1 NAME
@@ -114,10 +115,12 @@ sub ReportGet {
 
     # no data found...
     if ( !%Result ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Report with ID $Param{ID} not found!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Report with ID $Param{ID} not found!",
+            );
+        }
         return;
     }
 
@@ -182,10 +185,12 @@ sub ReportCreate {
     # check needed stuff
     for my $Needed (qw(DefinitionID Config UserID)) {
         if ( !$Param{$Needed} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Needed!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $Needed!"
+                );
+            }
             return;
         }
     }
@@ -195,10 +200,12 @@ sub ReportCreate {
         ID => $Param{DefinitionID}
     );
     if ( !%Definition ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Report definition with ID $Param{DefinitionID} doesn't exist!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Report definition with ID $Param{DefinitionID} doesn't exist!"
+            );
+        }
         return;
     }
 
@@ -238,17 +245,21 @@ sub ReportCreate {
         UserID     => $Param{UserID},
     );
     if ( !IsHashRefWithData($Data) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Unable to create report! Datasource backend didn't return anything useful!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Unable to create report! Datasource backend didn't return anything useful!"
+            );
+        }
         return;
     }
     if ( IsHashRefWithData($Data->{Columns}) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Unable to create report! Datasource backend didn't return any column information!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Unable to create report! Datasource backend didn't return any column information!"
+            );
+        }
         return;
     }
 
@@ -288,7 +299,7 @@ sub ReportCreate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'ReportDefinition.Report',
         ObjectID  => $Param{DefinitionID} . '::' . $ID,
@@ -308,15 +319,17 @@ sub ReportCreate {
         }
     }
     else {
-        # if no explicit config is given in the definition, we just use the requested formats 
+        # if no explicit config is given in the definition, we just use the requested formats
         @OutputFormats = @{$Param{Config}->{OutputFormats}}
     }
 
     if ( !@OutputFormats ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "No output formats available for report!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "No output formats available for report!"
+            );
+        }
         return;
     }
 
@@ -331,10 +344,12 @@ sub ReportCreate {
             Data       => $Data,
         );
         if ( !IsHashRefWithData($Output) ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Unable to generate output for format \"$OutputFormat\"!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Unable to generate output for format \"$OutputFormat\"!"
+                );
+            }
             next OUTPUTFORMAT;
         }
 
@@ -346,10 +361,12 @@ sub ReportCreate {
             %{$Output},
         );
         if ( !$Success ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Unable to store output for format \"$OutputFormat\" in database!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Unable to store output for format \"$OutputFormat\" in database!"
+                );
+            }
             next OUTPUTFORMAT;
         }
     }
@@ -414,7 +431,8 @@ sub ReportList {
 deletes a report
 
     my $Success = $ReportingObject->ReportDelete(
-        ID => 123,
+        ID     => 123,          # required
+        Silent => 0|1           # optional, default 0
     );
 
 =cut
@@ -438,10 +456,12 @@ sub ReportDelete {
         ID => $Param{ID},
     );
     if ( !%Report ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "A report with the ID $Param{ID} does not exist.",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "A report with the ID $Param{ID} does not exist.",
+            );
+        }
         return;
     }
 
@@ -473,7 +493,7 @@ sub ReportDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'Report',
         ObjectID  => $Param{ID},
@@ -489,10 +509,12 @@ sub _ValidateReport {
     # check needed stuff
     for (qw(Definition)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -503,14 +525,16 @@ sub _ValidateReport {
         Config => $Param{Definition}->{Config} || {},
     );
     if ( !$IsValid ) {
-        my $LogMessage = $Kernel::OM->Get('Log')->GetLogEntry(
-            Type => 'error',
-            What => 'Message',
-        );
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "DataSource configuration is invalid! ($LogMessage)"
-        );
+        if ( !$Param{Silent} ) {
+            my $LogMessage = $Kernel::OM->Get('Log')->GetLogEntry(
+                Type => 'error',
+                What => 'Message',
+            );
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "DataSource configuration is invalid! ($LogMessage)"
+            );
+        }
         return;
     }
 
@@ -520,24 +544,28 @@ sub _ValidateReport {
             Config     => $Param{Definition}->{Config}->{OutputFormats}->{$OutputFormat} || {},
         );
         if ( !$IsValid ) {
-            my $LogMessage = $Kernel::OM->Get('Log')->GetLogEntry(
-                Type => 'error',
-                What => 'Message',
-            );
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Output format config for \"$OutputFormat\" is invalid! ($LogMessage)"
-            );
+            if ( !$Param{Silent} ) {
+                my $LogMessage = $Kernel::OM->Get('Log')->GetLogEntry(
+                    Type => 'error',
+                    What => 'Message',
+                );
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Output format config for \"$OutputFormat\" is invalid! ($LogMessage)"
+                );
+            }
             return;
         }
     }
 
     # validate output format parameters / selection
     if ( !IsArrayRefWithData($Param{Config}->{OutputFormats}) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "No output formats requested!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "No output formats requested!"
+            );
+        }
         return;
     }
 
@@ -547,20 +575,24 @@ sub _ValidateReport {
         OUTPUTFORMAT:
         foreach my $OutputFormat ( @{$Param{Config}->{OutputFormats}} ) {
             if ( !exists $Param{Definition}->{Config}->{OutputFormats}->{$OutputFormat} ) {
-                $Kernel::OM->Get('Log')->Log(
-                    Priority => 'notice',
-                    Message  => "Requested output format \"$OutputFormat\" not available for this report! It will be ignored!"
-                );
+                if ( !$Param{Silent} ) {
+                    $Kernel::OM->Get('Log')->Log(
+                        Priority => 'notice',
+                        Message  => "Requested output format \"$OutputFormat\" not available for this report! It will be ignored!"
+                    );
+                }
                 next OUTPUTFORMAT;
             }
             push @AcceptedOutputFormats, $OutputFormat;
         }
 
         if ( !@AcceptedOutputFormats ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "No output formats are available for this report!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "No output formats are available for this report!"
+                );
+            }
             return;
         }
     }
@@ -572,14 +604,16 @@ sub _ValidateReport {
             Parameters => $Param{Config}->{Parameters} || {},
         );
         if ( !$IsValid ) {
-            my $LogMessage = $Kernel::OM->Get('Log')->GetLogEntry(
-                Type => 'error',
-                What => 'Message',
-            );
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Report parameters are invalid! ($LogMessage)"
-            );
+            if ( !$Param{Silent} ) {
+                my $LogMessage = $Kernel::OM->Get('Log')->GetLogEntry(
+                    Type => 'error',
+                    What => 'Message',
+                );
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Report parameters are invalid! ($LogMessage)"
+                );
+            }
             return;
         }
 
@@ -589,10 +623,12 @@ sub _ValidateReport {
             next if !$Parameter->{Required} || $Parameter->{Default};
 
             if ( !exists $Parameters->{$Parameter->{Name}} || !defined $Parameters->{$Parameter->{Name}} ) {
-                $Kernel::OM->Get('Log')->Log(
-                    Priority => 'error',
-                    Message  => "Required report parameter \"$Parameter->{Name}\" is missing!"
-                );
+                if ( !$Param{Silent} ) {
+                    $Kernel::OM->Get('Log')->Log(
+                        Priority => 'error',
+                        Message  => "Required report parameter \"$Parameter->{Name}\" is missing!"
+                    );
+                }
                 return;
             }
         }
@@ -629,7 +665,8 @@ sub _RemoveExcessReports {
     while ( @Reports > $Definition{MaxReports} ) {
         my $ReportID = shift @Reports;
         $Self->ReportDelete(
-            ID => $ReportID
+            ID     => $ReportID,
+            Silent => 1,
         );
     }
 

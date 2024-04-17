@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -65,7 +65,11 @@ sub Validate {
     my $FailedMail = '';
     if ($Param{Attribute} =~ /^(From|Cc|Bcc|To|Email)$/g) {
         for my $Email ( Email::Address::XS->parse( $Param{Data}->{$Param{Attribute}} ) ) {
-            if ( !$Kernel::OM->Get('CheckItem')->CheckEmail( Address => $Email->address() ) ) {
+            if ( !$Email->is_valid() ) {
+                $FailedMail = $Param{Data}->{$Param{Attribute}};
+                last;
+            }
+            elsif ( !$Kernel::OM->Get('CheckItem')->CheckEmail( Address => $Email->address() ) ) {
                 $FailedMail = $Email->address();
                 last;
             }
@@ -77,6 +81,7 @@ sub Validate {
             Message => "EmailAddressValidator: cannot validate attribute $Param{Attribute}!",
         );
     }
+
 
     if ( $FailedMail ) {
         return $Self->_Error(

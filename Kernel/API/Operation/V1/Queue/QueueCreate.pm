@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -71,7 +71,6 @@ perform QueueCreate Operation. This will return the created QueueID.
 	        	Name                => '...',
 	        	Comment             => '...',     # (optional)
 	        	ValidID             => '...',     # (optional)
-		        Calendar            => '...',     # (optional)
 		        UnlockTimeout       => '...',,    # (optional)
 		        FollowUpID          => '...',     # possible (1), reject (2) or new ticket (3) (optional, default 0)
 		        FollowUpLock        => '...',     # yes (1) or no (0) (optional, default 0)
@@ -118,7 +117,8 @@ sub Run {
 
     # check if Queue exists
     my $Exists = $Kernel::OM->Get('Queue')->QueueLookup(
-        Queue => $Queue->{Name},
+        Queue  => $Queue->{Name},
+        Silent => 1,
     );
 
     if ( $Exists ) {
@@ -132,7 +132,6 @@ sub Run {
         Name                => $Queue->{Name},
         Comment             => $Queue->{Comment} || '',
         ValidID             => $Queue->{ValidID} || 1,
-        Calendar            => $Queue->{Calendar} || '',
         UnlockTimeout       => $Queue->{UnlockTimeout} || '',
         FollowUpID          => $Queue->{FollowUpID} || '',
         FollowUpLock        => $Queue->{FollowUpLock} || '',

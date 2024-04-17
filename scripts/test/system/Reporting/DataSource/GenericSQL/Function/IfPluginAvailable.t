@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -18,16 +18,7 @@ use vars (qw($Self));
 my $ReportingObject = $Kernel::OM->Get('Reporting');
 my $FunctionObject = $ReportingObject->_LoadDataSourceBackend(Name => 'GenericSQL')->_LoadFunctionBackend(Name => 'if_plugin_available');
 
-#
-# log tests
-#
-
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 my $Home = $Kernel::OM->Get('Config')->Get('Home');
@@ -84,8 +75,6 @@ $Self->True(
     $Success,
     'Remove Plugin Directory',
 );
-
-# cleanup is done by RestoreDatabase
 
 1;
 

@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -16,17 +16,11 @@ use vars (qw($Self));
 # get ReportDefinition object
 my $ReportingObject = $Kernel::OM->Get('Reporting');
 
-#
-# log tests
-#
-
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # create definition
 my $DefinitionID = $ReportingObject->ReportDefinitionAdd(
@@ -179,6 +173,25 @@ $Self->True(
     'ReportDelete()',
 );
 
+my $Success = $ReportingObject->ReportDelete(
+    ID => $ReportID + 1,
+);
+
+$Self->False(
+    $Success,
+    'ReportDelete() - non-existing ID',
+);
+
+my $Success = $ReportingObject->ReportDelete(
+    ID => $ReportID + 1,
+    Silent => 1,
+);
+
+$Self->False(
+    $Success,
+    'ReportDelete() - non-existing ID (silent)',
+);
+
 @ReportList = $ReportingObject->ReportList(
     DefinitionID => $DefinitionID,
 );
@@ -196,6 +209,7 @@ $ReportID = $ReportingObject->ReportCreate(
         OutputFormats => ['PDF']
     },
     UserID => 1,
+    Silent => 1,
 );
 
 $Self->False(
@@ -240,9 +254,8 @@ $ReportID = $ReportingObject->ReportCreate(
         OutputFormats => ['CSV']
     },
     UserID => 1,
+    Silent => 1,
 );
-
-print STDERR "ReportID: $ReportID\n";
 
 $Self->False(
     $ReportID,
@@ -265,11 +278,10 @@ $Self->True(
     'ReportCreate() - with required parameter',
 );
 
-# cleanup is done by RestoreDatabase
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
-
-
 
 =back
 

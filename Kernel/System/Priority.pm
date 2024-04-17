@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -13,13 +13,14 @@ package Kernel::System::Priority;
 use strict;
 use warnings;
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'SysConfig',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    SysConfig
+    Valid
 );
 
 =head1 NAME
@@ -296,7 +297,7 @@ sub PriorityAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Priority',
         ObjectID  => $ID,
@@ -354,17 +355,11 @@ sub PriorityUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Priority',
         ObjectID  => $Param{PriorityID},
     );
-
-    # check all sysconfig options
-    #return 1 if !$Param{CheckSysConfig};
-
-    # check all sysconfig options and correct them automatically if neccessary
-    #$Kernel::OM->Get('SysConfig')->ConfigItemCheckAll();
 }
 
 =item PriorityLookup()
@@ -388,10 +383,12 @@ sub PriorityLookup {
 
     # check needed stuff
     if ( !$Param{Priority} && !$Param{PriorityID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Need Priority or PriorityID!'
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Need Priority or PriorityID!'
+            );
+        }
         return;
     }
 
@@ -456,7 +453,7 @@ sub PriorityDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'Priority',
         ObjectID  => $Param{PriorityID},

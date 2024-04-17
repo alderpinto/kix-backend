@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -15,12 +15,13 @@ use MIME::Base64;
 use Digest::MD5 qw(md5_hex);
 use Encode qw(encode_utf8);
 
-our @ObjectDependencies = (
-    'Config',
-    'DB',
-    'Encode',
-    'Log',
-    'Main'
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    DB
+    Encode
+    Log
+    Main
 );
 
 =head1 NAME
@@ -361,7 +362,7 @@ sub AttachmentStorageAdd {
         ) ) {
 
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'CREATE',
             Namespace => 'CMDB.ConfigItem.Attachment',
             ObjectID  => $ID,

@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -13,12 +13,10 @@ use utf8;
 use vars (qw($Self));
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # get oauth2 object
 my $OAuth2Object = $Kernel::OM->Get('OAuth2');
@@ -332,6 +330,9 @@ $Self->True(
     $OAuth2ProfileDelete,
     'ProfileDelete()',
 );
+
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -15,14 +15,15 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'Main',
-    'Time',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    Main
+    Time
+    Valid
 );
 
 =head1 NAME
@@ -88,10 +89,12 @@ sub SystemMaintenanceAdd {
     # check needed stuff
     for my $Key (qw(StartDate StopDate Comment ValidID UserID)) {
         if ( !$Param{$Key} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Key!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $Key!",
+                );
+            }
             return;
         }
     }
@@ -134,7 +137,7 @@ sub SystemMaintenanceAdd {
     return if !$ID;
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'SystemMaintenance',
         ObjectID  => $ID,
@@ -188,7 +191,7 @@ sub SystemMaintenanceDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'SystemMaintenance',
         ObjectID  => $Param{ID},
@@ -307,10 +310,12 @@ sub SystemMaintenanceUpdate {
     # check needed stuff
     for my $Key (qw(ID StartDate StopDate Comment ValidID UserID)) {
         if ( !$Param{$Key} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Key!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $Key!",
+                );
+            }
             return;
         }
     }
@@ -336,7 +341,7 @@ sub SystemMaintenanceUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'SystemMaintenance',
         ObjectID  => $Param{ID},

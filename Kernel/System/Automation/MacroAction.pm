@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -16,13 +16,14 @@ use MIME::Base64;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'User',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    User
+    Valid
 );
 
 =head1 NAME
@@ -161,10 +162,15 @@ sub MacroActionGet {
 
     # no data found...
     if ( !%Result ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Macro action with ID $Param{ID} not found!",
-        );
+        if (
+            !defined $Param{Silent}
+            || !$Param{Silent}
+        ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Macro action with ID $Param{ID} not found!",
+            );
+        }
         return;
     }
 
@@ -234,25 +240,29 @@ sub MacroActionAdd {
 
     $Param{Parameters} = $Param{Parameters} || {};
     my $IsValid = $BackendObject->ValidateConfig(
-        Config => $Param{Parameters}
+        Config => $Param{Parameters},
+        Silent => $Param{Silent}
     );
 
     if ( !$IsValid ) {
-        my $LogMessage = $Kernel::OM->Get('Log')->GetLogEntry(
-            Type => 'error',
-            What => 'Message',
-        );
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "MacroAction config is invalid ($LogMessage)!"
-        );
+        if ( !$Param{Silent} ) {
+            my $LogMessage = $Kernel::OM->Get('Log')->GetLogEntry(
+                Type => 'error',
+                What => 'Message',
+            );
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "MacroAction config is invalid ($LogMessage)!"
+            );
+        }
         return;
     }
 
     my $ReferencedMacroID = $Param{Parameters}->{MacroID};
     return if !$Self->_ReferencedMacroCheck(
         MacroID           => $Param{MacroID},
-        ReferencedMacroID => $ReferencedMacroID
+        ReferencedMacroID => $ReferencedMacroID,
+        Silent            => $Param{Silent},
     );
 
     # prepare Parameters as JSON
@@ -302,7 +312,7 @@ sub MacroActionAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Macro.MacroAction',
         ObjectID  => $Param{MacroID}.'::'.$ID,
@@ -334,10 +344,12 @@ sub MacroActionUpdate {
     # check needed stuff
     for (qw(ID UserID)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!",
+                );
+            }
             return;
         }
     }
@@ -354,10 +366,12 @@ sub MacroActionUpdate {
             ID => $Param{MacroID} || $Data{MacroID}
         );
         if ( !%Macro ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Macro with ID $Data{MacroID} doesn't exist!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Macro with ID $Data{MacroID} doesn't exist!"
+                );
+            }
             return;
         }
 
@@ -369,14 +383,17 @@ sub MacroActionUpdate {
         return if !$BackendObject;
 
         my $IsValid = $BackendObject->ValidateConfig(
-            Config => $Param{Parameters}
+            Config => $Param{Parameters},
+            Silent => $Param{Silent},
         );
 
         if ( !$IsValid ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "MacroAction config is invalid!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "MacroAction config is invalid!"
+                );
+            }
             return;
         }
     }
@@ -406,7 +423,8 @@ sub MacroActionUpdate {
     my $ReferencedMacroID = $Param{Parameters}->{MacroID};
     return if !$Self->_ReferencedMacroCheck(
         MacroID           => $Param{MacroID},
-        ReferencedMacroID => $ReferencedMacroID
+        ReferencedMacroID => $ReferencedMacroID,
+        Silent            => $Param{Silent},
     );
 
     # prepare Parameters as JSON
@@ -439,7 +457,7 @@ sub MacroActionUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'MacroAction',
         ObjectID  => $Param{ID},
@@ -549,13 +567,19 @@ sub MacroActionDelete {
 
     # check if this macro_action exists
     my %Data = $Self->MacroActionGet(
-        ID => $Param{ID},
+        ID     => $Param{ID},
+        Silent => $Param{Silent} || 0
     );
     if ( !IsHashRefWithData(\%Data) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "An macro action with the ID $Param{ID} does not exist.",
-        );
+        if (
+            !defined $Param{Silent}
+            || !$Param{Silent}
+        ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "An macro action with the ID $Param{ID} does not exist.",
+            );
+        }
         return;
     }
 
@@ -594,7 +618,7 @@ sub MacroActionDelete {
     }
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'MacroAction',
         ObjectID  => $Param{ID},
@@ -705,6 +729,9 @@ sub MacroActionExecute {
     );
     return if !$BackendObject;
 
+    # call init for backend
+    $BackendObject->Init();
+
     # add referrer data
     for my $CommonParam ( qw(JobID RunID MacroID MacroActionID) ) {
         $BackendObject->{$CommonParam} = $Self->{$CommonParam};
@@ -727,33 +754,41 @@ sub MacroActionExecute {
     # add event data
     $BackendObject->{EventData} = $Self->{EventData};
 
-    my %Parameters = %{$MacroAction{Parameters} || {}};
+    do {
+        # unset RepeatExecution of backend
+        $BackendObject->UnsetRepeatExecution();
 
-    # replace result variables
-    if (IsHashRefWithData($Self->{MacroResults})) {
-        $Self->_ReplaceResultVariables(
-            Data   => \%Parameters,
-            UserID => $Param{UserID}
-        );
-    }
+        my %Parameters = %{$MacroAction{Parameters} || {}};
 
-    my $Success = $BackendObject->Run(
-        %Param,
-        MacroType  => $Macro{Type},
-        Config     => \%Parameters
-    );
+        # replace result variables
+        if (IsHashRefWithData($Self->{MacroResults})) {
+            $Self->_ReplaceResultVariables(
+                Data   => \%Parameters,
+                UserID => $Param{UserID}
+            );
+        }
 
-    if ( !$Success ) {
-        # get last error message from system log
-        my $Message = $Kernel::OM->Get('Log')->GetLogEntry(
-            Type => 'error',
-            What => 'Message',
+        my $Success = $BackendObject->Run(
+            %Param,
+            MacroType         => $Macro{Type},
+            Config            => \%Parameters,
+            ConfigRaw         => \%{$MacroAction{Parameters} || {}},
         );
-        $Self->LogError(
-            Message  => "Macro action \"$MacroAction{Type}\" returned execution error.",
-            UserID   => $Param{UserID},
-        );
-    }
+
+        if ( !$Success ) {
+            # get last error message from system log
+            my $Message = $Kernel::OM->Get('Log')->GetLogEntry(
+                Type => 'error',
+                What => 'Message',
+            );
+            $Self->LogError(
+                Message  => "Macro action \"$MacroAction{Type}\" returned execution error.",
+                UserID   => $Param{UserID},
+            );
+
+            last;
+        }
+    } while ( $BackendObject->RepeatExecution() );
 
     # remove MacroActionID from log reference
     delete $Self->{MacroActionID};
@@ -876,15 +911,89 @@ sub GetAllSubMacrosOf {
     return @SubMacroIDs;
 }
 
+=item MacroActionDump()
+
+gets the "script code" of a macro action
+
+    my $Code = $AutomationObject->MacroActionDump(
+        ID => 123,       # the ID of the macro action
+    );
+
+=cut
+
+sub MacroActionDump {
+    my ( $Self, %Param ) = @_;
+
+    # check needed stuff
+    for (qw(ID)) {
+        if ( !$Param{$_} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Need $_!"
+            );
+            return;
+        }
+    }
+
+    my %MacroAction = $Self->MacroActionGet(
+        ID => $Param{ID}
+    );
+    if ( !%MacroAction ) {
+        $Kernel::OM->Get('Log')->Log(
+            Priority => 'error',
+            Message  => "MacroAction with ID $Param{ID} not found!"
+        );
+        return;
+    }
+
+    my $Script = $MacroAction{Type};
+
+    if ( $MacroAction{Comment} ) {
+        my $Comment = $MacroAction{Comment};
+        $Comment =~ s/"/\\\"/g;
+        $Script .= " --Comment \"$Comment\"";
+    }
+
+    foreach my $ResultVariable ( sort keys %{$MacroAction{ResultVariables} || {}} ) {
+        $Script .= " --Result $ResultVariable:$MacroAction{ResultVariables}->{$ResultVariable}";
+    }
+    foreach my $Parameter ( sort keys %{$MacroAction{Parameters} || {}} ) {
+        my $Value = $MacroAction{Parameters}->{$Parameter};
+        if ( IsArrayRef($Value) || IsHashRef($Value) ) {
+            $Value = $Kernel::OM->Get('JSON')->Encode(
+                Data => $Value
+            );
+        }
+        if ( $Parameter ne 'MacroID' ) {
+            $Value =~ s/"/\\\"/g;
+            $Script .= " --$Parameter \"$Value\"";
+        }
+    }
+    # dump the macro if we have a reference
+    if ( $MacroAction{Parameters}->{MacroID} ) {
+        $Script .= "\n";
+        my $MacroCode = $Self->MacroDump(
+            ID => $MacroAction{Parameters}->{MacroID},
+        );
+        foreach my $Line ( split /\n/, $MacroCode) {
+            $Script .= $Self->{DumpConfig}->{Indent}.$Line . "\n";
+        }
+    }
+
+    return $Script;
+}
+
 sub _ReferencedMacroCheck {
     my ( $Self, %Param ) = @_;
 
     if ($Param{ReferencedMacroID}) {
         if ($Param{MacroID} == $Param{ReferencedMacroID}) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Cannot use current macro ($Param{ReferencedMacroID}) as sub macro (child) of itself)!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Cannot use current macro ($Param{ReferencedMacroID}) as sub macro (child) of itself)!"
+                );
+            }
             return;
         }
         if (
@@ -892,10 +1001,12 @@ sub _ReferencedMacroCheck {
                 ID => $Param{ReferencedMacroID}
             )
         ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Referenced macro does not exists!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Referenced macro does not exists!"
+                );
+            }
             return;
         }
         if (
@@ -904,10 +1015,12 @@ sub _ReferencedMacroCheck {
                 IDList => [$Param{ReferencedMacroID}]
             )
         ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Cannot use parent macro ($Param{ReferencedMacroID}) as sub macro (child) of current macro ($Param{MacroID})!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Cannot use parent macro ($Param{ReferencedMacroID}) as sub macro (child) of current macro ($Param{MacroID})!"
+                );
+            }
             return;
         }
     }
@@ -999,8 +1112,11 @@ sub _ReplaceResultVariables {
         }
     }
     else {
+        # init index for temp variables
+        my $VariableFilterValueIndex = 0;
+
         # let leading be greedy - start with innermost variable
-        while ( $Param{Data} =~ /^(.*)(\$\{([a-zA-Z0-9_.: ]+)(?:\|(.*?))?\})(.*?)$/xms ) {
+        while ( $Param{Data} =~ /^(.*)(\$\{([a-zA-Z0-9_.,: ]+)(?:\|(.*?))?\})(.*?)$/xs ) {
             my $Leading    = $1;
             my $Expression = $2;
             my $Variable   = $3;
@@ -1020,15 +1136,32 @@ sub _ReplaceResultVariables {
                 );
             }
 
+            # variable is part of a string, we have to do a string replace
             if ( $Leading || $Trailing ) {
-                # variable is part of a string, we have to do a string replace
-                $Param{Data} =~ s/\Q$Expression\E/$Value/gmx;
+                # value is a data structure, replace with temp variable
+                if ( ref( $Value ) ) {
+                    # increment index
+                    $VariableFilterValueIndex += 1;
+
+                    # store value in MacroResults
+                    $Self->{MacroResults}->{VariableFilterValue}->{ $VariableFilterValueIndex } = $Value;
+
+                    # replace current variable with variable filter value
+                    $Param{Data} =~ s/\Q$Expression\E/<VariableFilterValue$VariableFilterValueIndex>/gxs;
+                }
+                # replace value as string
+                else {
+                    $Param{Data} =~ s/\Q$Expression\E/$Value/gxs;
+                }
             }
             else {
                 # variable is an assignment, we can replace it with the actual value (i.e. Object)
                 $Param{Data} = $Value;
             }
         }
+
+        # remove temp variables from MacroResult
+        delete( $Self->{MacroResults}->{VariableFilterValue} );
     }
 
     return $Param{Data};
@@ -1076,6 +1209,15 @@ sub _ExecuteVariableFilters {
             $Filter =~ s/(?<filter>.+?)\((?<parameter>.+)\)/$+{filter}/;
             my $Parameter = $+{parameter};
 
+            # check for stored variable filter value
+            if ( $Parameter =~ m/^<VariableFilterValue([1-9][0-9]*)>$/xms ) {
+                my $VariableFilterValueIndex = $1;
+                $Parameter = $Kernel::OM->Get('Main')->ResolveValueByKey(
+                    Key  => $VariableFilterValueIndex,
+                    Data => $Self->{MacroResults}->{VariableFilterValue},
+                );
+            }
+
             my $Handler;
             for my $HandlerName ( %{$Self->{VariableFilter}} ) {
                 if (lc($HandlerName) eq lc($Filter)) {
@@ -1121,3 +1263,4 @@ LICENSE-GPL3 for license information (GPL3). If you did not receive this file, s
 <https://www.gnu.org/licenses/gpl-3.0.txt>.
 
 =cut
+

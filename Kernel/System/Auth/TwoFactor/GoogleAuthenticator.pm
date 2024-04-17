@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -13,13 +13,10 @@ package Kernel::System::Auth::TwoFactor::GoogleAuthenticator;
 use strict;
 use warnings;
 
-use Digest::SHA qw(sha1);
-use Digest::HMAC qw(hmac_hex);
-
 our @ObjectDependencies = (
     'Config',
     'Log',
-    'Time',
+    'OTP',
     'User',
 );
 
@@ -52,6 +49,8 @@ sub Auth {
     my $ConfigObject = $Kernel::OM->Get('Config');
     my $SecretPreferencesKey = $ConfigObject->Get("AuthTwoFactorModule$Self->{Count}::SecretPreferencesKey") || '';
     if ( !$SecretPreferencesKey ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "Found no configuration for SecretPreferencesKey in AuthTwoFactorModule.",
@@ -70,6 +69,8 @@ sub Auth {
             return 1;
         }
 
+        return if $Param{Silent};
+
         # otherwise login counts as failed
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
@@ -80,6 +81,8 @@ sub Auth {
 
     # if we get to here (user has preference), we need a passed token
     if ( !$Param{TwoFactorToken} ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "Need TwoFactorToken!"
@@ -88,8 +91,11 @@ sub Auth {
     }
 
     # generate otp based on secret from preferences
-    my $OTP = $Self->_GenerateOTP(
-        Secret => $UserPreferences{$SecretPreferencesKey},
+    my $OTP = $Kernel::OM->Get('OTP')->GenerateTOTP(
+        Base32Secret => $UserPreferences{$SecretPreferencesKey},
+        TimeStep     => 30,
+        Digits       => 6,
+        Algorithm    => 'SHA1',
     );
 
     # compare against user provided otp
@@ -99,9 +105,12 @@ sub Auth {
         if ( $ConfigObject->Get("AuthTwoFactorModule$Self->{Count}::AllowPreviousToken") ) {
 
             # try again with previous otp (from 30 seconds ago)
-            $OTP = $Self->_GenerateOTP(
-                Secret   => $UserPreferences{$SecretPreferencesKey},
-                Previous => 1,
+            $OTP = $Kernel::OM->Get('OTP')->GenerateTOTP(
+                Base32Secret => $UserPreferences{$SecretPreferencesKey},
+                TimeStep     => 30,
+                Digits       => 6,
+                Algorithm    => 'SHA1',
+                Previous     => 1,
             );
         }
 
@@ -125,74 +134,7 @@ sub Auth {
     return 1;
 }
 
-sub _GenerateOTP {
-    my ( $Self, %Param ) = @_;
-
-    # algorithm based on RfC 6238
-
-    # get unix timestamp divided by 30
-    my $TimeStamp = $Kernel::OM->Get('Time')->SystemTime();
-    $TimeStamp = int( $TimeStamp / 30 );
-
-    # on request use previous 30-second time period
-    if ( $Param{Previous} ) {
-        --$TimeStamp;
-    }
-
-    # extend to 16 character hex value
-    my $PaddedTimeStamp = sprintf "%016x", $TimeStamp;
-
-    # encrypt timestamp with secret
-    my $PackedTimeStamp = pack 'H*', $PaddedTimeStamp;
-    my $Base32Secret = $Self->_DecodeBase32( Secret => $Param{Secret} );
-    my $HMAC = hmac_hex( $PackedTimeStamp, $Base32Secret, \&sha1 );
-
-    # now treat hmac to get 6 numerical digits
-
-    # Use 4 last bits as offset, then truncate to 4 bytes starting at the offset and remove most significant bit
-    my $Offset = hex( substr( $HMAC, -1 ) );
-    my $TruncatedHMAC = hex( substr( $HMAC, $Offset * 2, 8 ) ) & 0x7fffffff;
-
-    # use last 6 digits (modulo 1.000.000) as token
-    my $Token = $TruncatedHMAC % 1000000;
-
-    # make sure to use all 6 digits (0-padded)
-    return sprintf( "%06d", $Token );
-}
-
-sub _DecodeBase32 {
-    my ( $Self, %Param ) = @_;
-
-    # based on RfC 3548, code inspired by MIME::Base32
-
-    # convert all characters to upper case and remove whitespace (not allowed for base32)
-    my $Key = uc $Param{Secret};
-    $Key =~ s{ [ ]+ }{}xmsg;
-
-    # turn into binary characters
-    $Key =~ tr|A-Z2-7|\0-\37|;
-
-    # unpack into binary
-    $Key = unpack 'B*', $Key;
-
-    # cut three most significant bits for each byte
-    $Key =~ s{ 0{3} ( .{5} ) }{$1}xmsg;
-
-    # trim string to full 8 bit units
-    my $Length = length $Key;
-    if ( $Length % 8 ) {
-        $Key = substr( $Key, 0, $Length - $Length % 8 );
-    }
-
-    # pack back up
-    $Key = pack 'B*', $Key;
-    return $Key;
-}
-
 1;
-
-
-
 
 =back
 

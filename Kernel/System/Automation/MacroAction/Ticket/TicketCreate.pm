@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -338,29 +338,13 @@ sub Run {
         }
     }
     $ArticleParam{Subject} = $TicketParam{Title};
-    $ArticleParam{Body}    = $Self->_ReplaceValuePlaceholder(
-        %Param,
-        Value     => $ArticleParam{Body},
-        Translate => 1,
-        Richtext  => 1
-    );
-
-
-    # replace placeholders in non-richtext attributes
-    for my $Attribute ( qw(Channel SenderType To From Cc Bcc AccountTime) ) {
-        next if !defined $ArticleParam{$Attribute};
-
-        $ArticleParam{$Attribute} = $Self->_ReplaceValuePlaceholder(
-            %Param,
-            Value => $ArticleParam{$Attribute}
-        );
-    }
 
     # create article
     my $ArticleBackendResult = $Self->SUPER::Run(
-        Config   => \%ArticleParam,
-        TicketID => $TicketID,
-        UserID   => $Param{UserID}
+        EventData => $Param{EventData},
+        Config    => \%ArticleParam,
+        TicketID  => $TicketID,
+        UserID    => $Param{UserID}
     );
 
     # reset definition
@@ -402,10 +386,12 @@ sub ValidateConfig {
 
         if (%State) {
             if ( $State{TypeName} =~ m{\A pending}msxi && !IsNumber( $Param{Config}->{PendingTimeDiff} ) ) {
-                $Kernel::OM->Get('Log')->Log(
-                    Priority => 'error',
-                    Message  => "Validation of parameter \"PendingTimeDiff\" failed!"
-                );
+                if ( !$Param{Silent} ) {
+                    $Kernel::OM->Get('Log')->Log(
+                        Priority => 'error',
+                        Message  => "Validation of parameter \"PendingTimeDiff\" failed!"
+                    );
+                }
                 return;
             }
         }
@@ -534,19 +520,43 @@ sub _CheckTicketParams {
         }
     }
 
-    if ($Param{ContactEmailOrID} && $Param{ContactEmailOrID} =~ /^\d+$/) {
-        my $ContactID = $Kernel::OM->Get('Contact')->ContactLookup(
-            ID     => $Param{ContactEmailOrID},
-            Silent => 1,
-        );
-        if (!$ContactID) {
-            $Kernel::OM->Get('Automation')->LogError(
-                Referrer => $Self,
-                Message  => "Couldn't create new ticket - can't find contact for contact id \"$Param{ContactEmailOrID}\"!",
-                UserID   => $Param{UserID}
+    if ($Param{ContactEmailOrID}) {
+        if ($Param{ContactEmailOrID} =~ /^\d+$/) {
+            my $ContactID = $Kernel::OM->Get('Contact')->ContactLookup(
+                ID     => $Param{ContactEmailOrID},
+                Silent => 1
             );
-            return;
+            if (!$ContactID) {
+                $Kernel::OM->Get('Automation')->LogError(
+                    Referrer => $Self,
+                    Message  => "Couldn't create new ticket - can't find contact for contact id \"$Param{ContactEmailOrID}\" of ContactEmailOrID!",
+                    UserID   => $Param{UserID}
+                );
+                return;
+            }
+        } else {
+            my $ParserObject = Kernel::System::EmailParser->new(
+                Mode => 'Standalone'
+            );
+            my $ContactEmail = $ParserObject->GetEmailAddress(
+                Email => $Param{ContactEmailOrID}
+            );
+            if (!$ContactEmail) {
+                $Kernel::OM->Get('Automation')->LogError(
+                    Referrer => $Self,
+                    Message  => "Couldn't create new ticket - value \"$Param{ContactEmailOrID}\" of ContactEmailOrID is no valid email address!",
+                    UserID   => $Param{UserID}
+                );
+                return;
+            }
         }
+    } else {
+        $Kernel::OM->Get('Automation')->LogError(
+            Referrer => $Self,
+            Message  => "Couldn't create new ticket - no ContactEmailOrID given!",
+            UserID   => $Param{UserID}
+        );
+        return;
     }
 
     return 1;
@@ -585,24 +595,11 @@ sub _SetDynamicFields {
                     || !IsHashRefWithData($DynamicFieldLookup{$DynamicField->[0]})
             );
 
-            my $ReplacedValue;
-
-            if ($DynamicField->[1] =~ m/^<KIX_TICKET_DynamicField_(\w+?)>$/) {
-                my $DFName = $1;
-                $DFName =~ s/(\w+?)_.+/$1/;
-
-                if ($DFName && IsHashRefWithData( $DynamicFieldLookup{$DFName} ) ) {
-                    $ReplacedValue = $DynamicFieldBackendObject->ValueGet(
-                        DynamicFieldConfig => $DynamicFieldLookup{$DFName},
-                        ObjectID           => $Self->{RootObjectID} || $Param{TicketID},
-                    );
-                }
-            } else {
-                $ReplacedValue = $Self->_ReplaceValuePlaceholder(
-                    %Param,
-                    Value => $DynamicField->[1]
-                );
-            }
+            my $ReplacedValue = $Self->_ReplaceValuePlaceholder(
+                %Param,
+                Value => $DynamicField->[1],
+                HandleKeyLikeObjectValue => 1
+            );
 
             next if (!$ReplacedValue);
 

@@ -113,18 +113,6 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="DynamicFields::Driver###Checkbox" Required="0" Valid="1">
-        <Description Translatable="1">DynamicField backend registration.</Description>
-        <Group>Framework</Group>
-        <SubGroup>DynamicFields::Driver::Registration</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="DisplayName" Translatable="1">Checkbox</Item>
-                <Item Key="Module">Kernel::System::DynamicField::Driver::Checkbox</Item>
-                <Item Key="ConfigDialog">AdminDynamicFieldCheckbox</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="DynamicFields::Driver###DateTime" Required="0" Valid="1">
         <Description Translatable="1">DynamicField backend registration.</Description>
         <Group>Framework</Group>
@@ -180,16 +168,6 @@
         <SubGroup>Core::Ticket</SubGroup>
         <Setting>
             <String Regex="">25</String>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::ForwardFaxQueues" Required="1" Valid="1">
-        <Description Translatable="1">Defines mapping of KIX queues to be fax-forwarded and corresponding fax-numbers.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key=""></Item>
-            </Hash>
         </Setting>
     </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="OrganizationHotline1" Required="1" Valid="1">
@@ -248,17 +226,6 @@
             <String Regex="">Your Org. Director/s according to Registration</String>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Ticket::EventModulePost###999-ExternalSupplierForwarding" Required="0" Valid="1">
-        <Description Translatable="1">Workflowmodule which forwards the ticket (1st article) and related CIs.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core::Ticket</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Module">Kernel::System::Ticket::Event::ExternalSupplierForwarding</Item>
-                <Item Key="Event">(TicketQueueUpdate|ArticleCreate)</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="PostMaster::PreFilterModule###000-PGPInlineDecrypt" Required="0" Valid="1">
         <Description Translatable="1">Module to decrypt PGP-encrypted mails before any other processing.</Description>
         <Group>Framework</Group>
@@ -269,84 +236,6 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::ForwardQueues" Required="1" Valid="1">
-        <Description Translatable="1">Defines mapping of KIX queues to be forwarded and corresponding email-addresses.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key=""></Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::ForwardEmailPGPKeys" Required="1" Valid="1">
-        <Description Translatable="1">Defines PGP-Keys for mail addresses which are not registered in the key.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key=""></Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::RelevantFwdChannels" Required="0" Valid="1">
-        <Description Translatable="1">Defines channel which are forwarded if added to tickets in Fwd-Queues (note-report will NOT be considered!).</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <Array>
-                <Item>note</Item>
-            </Array>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::ForwardObjectClasses" Required="1" Valid="1">
-        <Description Translatable="1">Defines the classes of linked object which are relevant to be forwarded (included).</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="ConfigItem">Class,Name,InciState,DeplState</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::BCC" Required="0" Valid="1">
-        <Description Translatable="1">Defines BCC-Mailaddress for ExternalSupplierForwarding-Submissions - useful for debugging, does not provide separate encryption forr bcc-receipient.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <String Regex=""></String>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::Channel" Required="1" Valid="1">
-        <Description Translatable="1">Defines the channel for generated message.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <String Regex="">email</String>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::VisibleForCustomer" Required="1" Valid="1">
-        <Description Translatable="1">Defines if the generated message should be visible for the customer.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <Option SelectedID="0">
-                <Item Key="0">No</Item>
-                <Item Key="1">Yes</Item>
-            </Option>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="ExternalSupplierForwarding::ContactAttrBlacklist" Required="0" Valid="1">
-        <!-- rkaiser - T#2017020290001194 - changed customer user to contact -->
-        <Description Translatable="1">Defines contact attributes which should not be shown in forwarded documents.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core</SubGroup>
-        <Setting>
-            <Array>
-                <Item></Item>
-            </Array>
-        </Setting>
-    </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="ImportExport::ObjectBackendRegistration###Contact" Required="0" Valid="1">
         <Description Translatable="1">Object backend module registration for the import/export module.</Description>
         <Group>Framework</Group>
@@ -355,6 +244,17 @@
             <Hash>
                 <Item Key="Module">Kernel::System::ImportExport::ObjectBackend::Contact</Item>
                 <Item Key="Name">Contact</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+    <ConfigItem AccessLevel="internal" Name="ImportExport::ObjectBackendRegistration###Organisation" Required="0" Valid="1">
+        <Description Translatable="1">Object backend module registration for the import/export module.</Description>
+        <Group>Framework</Group>
+        <SubGroup>ObjectBackend::ModuleRegistration</SubGroup>
+        <Setting>
+            <Hash>
+                <Item Key="Module">Kernel::System::ImportExport::ObjectBackend::Organisation</Item>
+                <Item Key="Name">Organisation</Item>
             </Hash>
         </Setting>
     </ConfigItem>
@@ -456,18 +356,6 @@
             <Hash>
                 <Item Key="Module">Kernel::System::ImportExport::ObjectBackend::CustomerCompany</Item>
                 <Item Key="Name">CustomerCompany</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="DynamicFields::Driver###MultiselectGeneralCatalog" Required="0" Valid="1">
-        <Description Translatable="1">DynamicField backend registration.</Description>
-        <Group>Framework</Group>
-        <SubGroup>DynamicFields::Driver::Registration</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="DisplayName" Translatable="1">MultiselectGeneralCatalog</Item>
-                <Item Key="Module">Kernel::System::DynamicField::Driver::MultiselectGeneralCatalog</Item>
-                <Item Key="ConfigDialog">AdminDynamicFieldMultiselectGeneralCatalog</Item>
             </Hash>
         </Setting>
     </ConfigItem>
@@ -1333,12 +1221,12 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="TicketStateWorkflow::PostmasterFollowUpCheckCustomerIDFrom" Required="0" Valid="1">
-        <Description Translatable="1">Checks if the sender of a follow-up message is contained in customer database an has an identical customer-ID as the ticket. If so, the email is considered as email-external, otherwise it is considered as email-internal. Default KIX behavior if disabled.</Description>
+    <ConfigItem AccessLevel="internal" Name="PostMaster::FollowUp::CheckFromOrganisation" Required="0" Valid="1">
+        <Description Translatable="1">Checks if the sender of a follow-up message is contained in contact database an has an identical organisation as the ticket. If so, the email is visible in the self service portal.</Description>
         <Group>Framework</Group>
         <SubGroup>Core::PostMaster</SubGroup>
         <Setting>
-            <Option SelectedID="1">
+            <Option SelectedID="0">
                 <Item Key="0">No</Item>
                 <Item Key="1">Yes</Item>
             </Option>
@@ -1592,7 +1480,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1632,7 +1519,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1672,7 +1558,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1712,7 +1597,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1752,7 +1636,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1792,7 +1675,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1832,7 +1714,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1872,7 +1753,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1912,7 +1792,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1942,7 +1821,7 @@
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="PostMaster::PreFilterModule###0010-SystemMonitoring" Required="0" Valid="10">
+    <ConfigItem AccessLevel="internal" Name="PostMaster::PreFilterModule###0010-SystemMonitoring" Required="0" Valid="0">
         <Description Translatable="1">Basic mail interface to System Monitoring Suites. See also event "TicketAutoLinkConfigItem" for more specific asset search, than by host-/service name.</Description>
         <Group>Framework</Group>
         <SubGroup>Core::PostMaster</SubGroup>
@@ -1952,7 +1831,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -1992,7 +1870,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -2032,7 +1909,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -2072,7 +1948,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -2112,7 +1987,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -2152,7 +2026,6 @@
                 <Item Key="DynamicFieldContent::Ticket">SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState</Item>
                 <Item Key="DynamicFieldContent::Article"></Item>
 
-                <Item Key="AcknowledgeName">Nagios1</Item>
                 <Item Key="AffectedAssetName">AffectedAsset</Item>
                 <Item Key="SysMonXStateName">SysMonXState</Item>
 
@@ -2179,115 +2052,6 @@
                 <Item Key="CloseTicketRegExp">OK|UP</Item>
                 <Item Key="CloseActionState">closed</Item>
                 <Item Key="ClosePendingTime">172800</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::Registration" Required="1" Valid="1">
-        <Description Translatable="1">Registration for possible system monitoring tool acknowledge. Content is used as allocation in following config options. Key must be some of AcknowledgeName-value, used in PostMasterFilter.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Array>
-                <Item>Nagios1</Item>
-                <Item>Nagios2</Item>
-            </Array>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::RegistrationAllocation" Required="1" Valid="1">
-        <Description Translatable="1">Set Dynamic Field, which contains allocation for system monitoring acknowledge.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <String Regex="">AcknowledgeName</String>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::DynamicField::Host" Required="1" Valid="1">
-        <Description Translatable="1">Name of Dynamic Field for Host.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">SysMonXHost</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::DynamicField::Address" Required="1" Valid="1">
-        <Description Translatable="1">Name of Dynamic Field for Address.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">SysMonXAddress</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::DynamicField::Service" Required="1" Valid="1">
-        <Description Translatable="1">Name of Dynamic Field for Service.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">SysMonXService</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::Type" Required="0" Valid="1">
-        <Description Translatable="1">Define Tool (Nagios) acknowledge type.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">pipe</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::NamedPipe::Host" Required="0" Valid="1">
-        <Description Translatable="1">Named pipe acknowledge format for host.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">[&lt;UNIXTIME&gt;] ACKNOWLEDGE_HOST_PROBLEM;&lt;HOST_NAME&gt;;1;1;1;&lt;LOGIN&gt;;&lt;a href="&lt;CONFIG_HttpType&gt;://&lt;CONFIG_FQDN&gt;/&lt;CONFIG_ScriptAlias&gt;index.pl?Action=AgentTicketZoom&amp;TicketID=&lt;TicketID&gt;"&gt;&lt;CONFIG_Ticket::Hook&gt;&lt;TicketNumber&gt;&lt;/a&gt;</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::NamedPipe::Service" Required="0" Valid="1">
-        <Description Translatable="1">Named pipe acknowledge format for service.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">[&lt;UNIXTIME&gt;] ACKNOWLEDGE_SVC_PROBLEM;&lt;HOST_NAME&gt;;&lt;SERVICE_NAME&gt;;1;1;1;&lt;LOGIN&gt;;&lt;a href="&lt;CONFIG_HttpType&gt;://&lt;CONFIG_FQDN&gt;/&lt;CONFIG_ScriptAlias&gt;index.pl?Action=AgentTicketZoom&amp;TicketID=&lt;TicketID&gt;"&gt;&lt;CONFIG_Ticket::Hook&gt;&lt;TicketNumber&gt;&lt;/a&gt;</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::HTTP::URL" Required="0" Valid="1">
-        <Description Translatable="1">The http acknowledge url.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">http://nagios.example.com/nagios/cgi-bin/cmd.cgi?cmd_typ=&lt;CMD_TYP&gt;&amp;cmd_mod=2&amp;host=&lt;HOST_NAME&gt;&amp;service=&lt;SERVICE_NAME&gt;&amp;sticky_ack=on&amp;send_notification=on&amp;persistent=on&amp;com_data=&lt;TicketNumber&gt;&amp;btnSubmit=Commit</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Tool::Acknowledge::HTTP::User" Required="0" Valid="1">
-        <Description Translatable="1">The http acknowledge user.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">John</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="confidential" Name="Tool::Acknowledge::HTTP::Password" Required="0" Valid="1">
-        <Description Translatable="1">The http acknowledge password.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Tool::Acknowledge</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="Nagios1">some_pass</Item>
             </Hash>
         </Setting>
     </ConfigItem>
@@ -2428,7 +2192,7 @@
             </Option>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Frontend::RichText::DefaultCSS" Required="1" Valid="1">
+    <ConfigItem AccessLevel="external" Name="Frontend::RichText::DefaultCSS" Required="1" Valid="1">
         <Description Translatable="1">Defines the default CSS used in rich text editors.</Description>
         <Group>Framework</Group>
         <SubGroup>Core::Web</SubGroup>
@@ -2659,7 +2423,7 @@
         <Group>Framework</Group>
         <SubGroup>Core::Sendmail</SubGroup>
         <Setting>
-            <Option Location="Kernel/System/Email/*.pm" SelectedID="Kernel::System::Email::SMTP"></Option>
+            <Option Location="Kernel/System/Email/*.pm" SelectedID="Kernel::System::Email::DoNotSendEmail"></Option>
         </Setting>
     </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="SendmailModule::CMD" Required="1" Valid="1" ConfigLevel="200">
@@ -7779,7 +7543,7 @@ Notes:
             </Hash>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="FileUpload::MaxAllowedSize" Required="1" Valid="1" ConfigLevel="200">
+    <ConfigItem AccessLevel="external" Name="FileUpload::MaxAllowedSize" Required="1" Valid="1" ConfigLevel="200">
         <Group>Framework</Group>
         <SubGroup>Core::FileUpload</SubGroup>
         <Description Translatable="1">Defines the maximal size (in bytes) for file uploads.</Description>
@@ -9002,6 +8766,7 @@ You can log in via the following URL:
             <Array>
                 <Item>ContactAdd</Item>
                 <Item>ContactUpdate</Item>
+                <Item>ContactDelete</Item>
             </Array>
         </Setting>
     </ConfigItem>
@@ -9013,6 +8778,7 @@ You can log in via the following URL:
             <Array>
                 <Item>OrganisationAdd</Item>
                 <Item>OrganisationUpdate</Item>
+                <Item>OrganisationDelete</Item>
             </Array>
         </Setting>
     </ConfigItem>
@@ -9357,18 +9123,6 @@ You can log in via the following URL:
             </Array>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="DynamicFields::Driver###RemoteDB" Required="0" Valid="1">
-        <Description Translatable="1">DynamicField backend registration.</Description>
-        <Group>Framework</Group>
-        <SubGroup>DynamicFields::Driver::Registration</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="DisplayName">RemoteDB</Item>
-                <Item Key="Module">Kernel::System::DynamicField::Driver::RemoteDB</Item>
-                <Item Key="ConfigDialog">AdminDynamicFieldRemoteDB</Item>
-            </Hash>
-        </Setting>
-    </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="SysConfig::EventModulePost###000-LogSysConfigChanges" Required="0" Valid="0">
         <Description Translatable="1">Logs the configuration changes of SysConfig options.</Description>
         <Group>Framework</Group>
@@ -9378,34 +9132,6 @@ You can log in via the following URL:
                 <Item Key="Module">Kernel::System::SysConfig::Event::LogSysConfigChanges</Item>
                 <Item Key="Event">SysConfigOptionUpdate</Item>
             </Hash>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="SysConfigChangeLog::LogModule" Required="1" Valid="1">
-        <Description Translatable="1">Log module for the SysConfig. "File" writes all messages in a given logfile, "SysLog" uses the syslog daemon of the system, e.g. syslogd.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core::Log</SubGroup>
-        <Setting>
-            <Option Location="Kernel/System/SysConfigChangeLog/*.pm" SelectedID="Kernel::System::SysConfigChangeLog::File"></Option>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="SysConfigChangeLog::LogModule::SysLog::Facility" Required="1" Valid="1">
-        <Description Translatable="1">If "SysLog" was selected for LogModule, you can specify a special log facility.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core::Log</SubGroup>
-        <Setting>
-            <String Regex="">user</String>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="SysConfigChangeLog::LogModule::SysLog::Charset" Required="1" Valid="1">
-        <Description Translatable="1">If "SysLog" was selected for LogModule, you can specify the charset that should be used for logging.</Description>
-        <Group>Framework</Group>
-        <SubGroup>Core::Log</SubGroup>
-        <Setting>
-            <Option SelectedID="iso-8859-1">
-                <Item Key="iso-8859-1">iso-8859-1</Item>
-                <Item Key="iso-8859-15">iso-8859-15</Item>
-                <Item Key="utf-8">utf-8</Item>
-            </Option>
         </Setting>
     </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="SysConfigChangeLog::LogModule::LogFile" Required="1" Valid="1">
@@ -9425,17 +9151,6 @@ You can log in via the following URL:
                 <Item Key="0">No</Item>
                 <Item Key="1">Yes</Item>
             </Option>
-        </Setting>
-    </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="DynamicFields::Driver###User" Required="0" Valid="1">
-        <Description Translatable="1">DynamicField backend registration.</Description>
-        <Group>Framework</Group>
-        <SubGroup>DynamicFields::Driver::Registration</SubGroup>
-        <Setting>
-            <Hash>
-                <Item Key="DisplayName" Translatable="1">User</Item>
-                <Item Key="Module">Kernel::System::DynamicField::Driver::User</Item>
-            </Hash>
         </Setting>
     </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="PostMaster::PreFilterModule###888-ExtendedFollowUp" Required="0" Valid="1">
@@ -9504,12 +9219,12 @@ You can log in via the following URL:
         </Setting>
     </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="ExtendedFollowUp###AllTicketStateTypesIncluded" Required="1" Valid="1">
-        <Description Translatable="1">State types of follow up tickets which will be considered. If open/pending tickets was selected and no one was found all tickets will be considered.</Description>
+        <Description Translatable="1">State types of follow up tickets which will be considered. If viewable tickets was selected and no one was found all tickets will be considered.</Description>
         <Group>Framework</Group>
         <SubGroup>Core::PostMaster</SubGroup>
         <Setting>
             <Option SelectedID="1">
-                <Item Key="0">First open/pending tickets</Item>
+                <Item Key="0">First viewable tickets</Item>
                 <Item Key="1">All tickets</Item>
             </Option>
         </Setting>
@@ -9570,6 +9285,19 @@ You can log in via the following URL:
         </Setting>
     </ConfigItem>
 
+    <ConfigItem AccessLevel="internal" Name="Automation::MinimumLogLevel" Required="1" Valid="1">
+        <Description Translatable="1">Set minimum loglevel for the automation layer. If you select 'error', just errors are logged. With 'debug' you get all logging messages.</Description>
+        <Group>Framework</Group>
+        <SubGroup>Core</SubGroup>
+        <Setting>
+            <Option SelectedID="error">
+                <Item Key="error" Translatable="1">error</Item>
+                <Item Key="notice" Translatable="1">notice</Item>
+                <Item Key="info" Translatable="1">info</Item>
+                <Item Key="debug" Translatable="1">debug</Item>
+            </Option>
+        </Setting>
+    </ConfigItem>
     <ConfigItem AccessLevel="internal" Name="Automation::Debug" Required="1" Valid="1" ConfigLevel="200">
         <Description Translatable="1">Enable Automation debugging.</Description>
         <Group>Framework</Group>
@@ -9581,6 +9309,7 @@ You can log in via the following URL:
             </Option>
         </Setting>
     </ConfigItem>
+
     <ConfigItem AccessLevel="internal" Name="Automation::JobType###Synchronisation" Required="0" Valid="1">
         <Description Translatable="1">Registration of a job type for automation.</Description>
         <Group>Automation</Group>
@@ -9591,7 +9320,6 @@ You can log in via the following URL:
             </Hash>
         </Setting>
     </ConfigItem>
-
     <ConfigItem AccessLevel="internal" Name="Automation::JobType###Reporting" Required="0" Valid="1">
         <Description Translatable="1">Registration of a job type for automation.</Description>
         <Group>Automation</Group>
@@ -9599,6 +9327,16 @@ You can log in via the following URL:
             <Hash>
                 <Item Key="DisplayName" Translatable="1">Reporting</Item>
                 <Item Key="Module">Kernel::System::Automation::Job::Reporting</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+    <ConfigItem AccessLevel="internal" Name="Automation::JobType###Contact" Required="0" Valid="1">
+        <Description Translatable="1">Registration of a job type for automation.</Description>
+        <Group>Automation</Group>
+        <Setting>
+            <Hash>
+                <Item Key="DisplayName" Translatable="1">Contact</Item>
+                <Item Key="Module">Kernel::System::Automation::Job::Contact</Item>
             </Hash>
         </Setting>
     </ConfigItem>
@@ -9613,7 +9351,6 @@ You can log in via the following URL:
             </Hash>
         </Setting>
     </ConfigItem>
-
     <ConfigItem AccessLevel="internal" Name="Automation::MacroType###Reporting" Required="0" Valid="1">
         <Description Translatable="1">Registration of a macro type for automation.</Description>
         <Group>Automation</Group>
@@ -9621,6 +9358,16 @@ You can log in via the following URL:
             <Hash>
                 <Item Key="DisplayName" Translatable="1">Reporting</Item>
                 <Item Key="Module">Kernel::System::Automation::Macro::Reporting</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+    <ConfigItem AccessLevel="internal" Name="Automation::MacroType###Contact" Required="0" Valid="1">
+        <Description Translatable="1">Registration of a macro type for automation.</Description>
+        <Group>Automation</Group>
+        <Setting>
+            <Hash>
+                <Item Key="DisplayName" Translatable="1">Contact</Item>
+                <Item Key="Module">Kernel::System::Automation::Macro::Contact</Item>
             </Hash>
         </Setting>
     </ConfigItem>
@@ -9730,13 +9477,6 @@ You can log in via the following URL:
             <String>Kernel::System::Automation</String>
         </Setting>
     </ConfigItem>
-    <ConfigItem AccessLevel="internal" Name="Automation::VariableFilter###100-DateUtil" Required="0" Valid="1">
-        <Description Translatable="1">Registration of a variable filter module.</Description>
-        <Group>Automation</Group>
-        <Setting>
-            <String>Kernel::System::Automation::VariableFilter::DateUtil</String>
-        </Setting>
-    </ConfigItem>
 
     <ConfigItem AccessLevel="internal" Name="Reporting::DataSource###GenericSQL" Required="0" Valid="1">
         <Description Translatable="1">Registration of a report type for reporting.</Description>
@@ -9837,4 +9577,104 @@ You can log in via the following URL:
             </String>
         </Setting>
     </ConfigItem>
+    <ConfigItem AccessLevel="internal" Name="SysConfig::EventModulePost###005-AssignedMappingChanged" Required="0" Valid="1">
+        <Description Translatable="1">Removes relevant caches if assigned objects/configitems mapping is changed.</Description>
+        <Group>Framework</Group>
+        <SubGroup>Core::Log</SubGroup>
+        <Setting>
+            <Hash>
+                <Item Key="Module">Kernel::System::SysConfig::Event::AssignedMappingChanged</Item>
+                <Item Key="Event">SysConfigOptionUpdate</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+
+    <ConfigItem AccessLevel="internal" Name="Placeholder::Module###005-Common" Required="0" Valid="1">
+        <Description Translatable="1">Module registration for configuration placeholders.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="Module">Kernel::System::Placeholder::Common</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+    <ConfigItem AccessLevel="internal" Name="Placeholder::Module###010-Config" Required="0" Valid="1">
+        <Description Translatable="1">Module registration for configuration placeholders.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="Module">Kernel::System::Placeholder::Config</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+    <ConfigItem AccessLevel="internal" Name="Placeholder::Module###050-DynamicField" Required="0" Valid="1">
+        <Description Translatable="1">Module registration for dynamic field attribute placeholders.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="Module">Kernel::System::Placeholder::DynamicField</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+
+    <ConfigItem AccessLevel="internal" Name="Contact::EventModulePost###900-Automation" Required="0" Valid="1">
+        <Description Translatable="1">Event module registration.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="Module">Kernel::System::Automation::Event::Handler</Item>
+                <Item Key="Transaction">1</Item>
+                <Item Key="Event"></Item>
+                <Item Key="Type">Contact</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+
+    <ConfigItem AccessLevel="internal" Name="Frontend::Output::FilterText###AAAURL" Required="0" Valid="1">
+        <Description Translatable="1">Defines the filter that processes text in order to highlight URLs.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="Module">Kernel::Output::HTML::FilterText::URL</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+
+    <ConfigItem AccessLevel="internal" Name="SupportData" Required="0" Valid="1">
+        <Description Translatable="1">Defines the parameters for the SupportData collection and sending.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="SendTo">support@kixdesk.com</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+    <ConfigItem AccessLevel="internal" Name="Daemon::SchedulerCronTaskManager::Task###SendSupportData" Required="0" Valid="0" ConfigLevel="100">
+        <Description Translatable="1">Send the Support Data.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="TaskName">SendSupportData</Item>
+                <Item Key="Schedule">0 4 * * 1</Item> <!-- default every monday at 04:00 AM -->
+                <Item Key="Module">Kernel::System::SupportData</Item>
+                <Item Key="Function">SupportDataSend</Item>
+                <Item Key="MaximumParallelInstances">1</Item>
+                <Item Key="Params">
+                </Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+
+
+    <ConfigItem AccessLevel="internal" Name="Metrics::Active" Required="1" Valid="1" ConfigLevel="200">
+        <Description Translatable="1">Enable or disable metrics.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="API">1</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+    <ConfigItem AccessLevel="internal" Name="Metrics::DaysToKeep" Required="0" Valid="1">
+        <Description Translatable="1">Defines the number of days to keep the metric files.</Description>
+        <Setting>
+            <Hash>
+                <Item Key="API">30</Item>
+            </Hash>
+        </Setting>
+    </ConfigItem>
+
+
 </kix_config>

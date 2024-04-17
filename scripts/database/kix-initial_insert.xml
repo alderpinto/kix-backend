@@ -250,7 +250,7 @@
         <Data Key="create_time">current_timestamp</Data>
         <Data Key="change_by">1</Data>
         <Data Key="change_time">current_timestamp</Data>
-    </Insert>    
+    </Insert>
     <Insert Table="roles">
         <Data Key="id" Type="AutoIncrement">17</Data>
         <Data Key="name" Type="Quote" Translatable="1">Ticket Agent (Servicedesk)</Data>
@@ -266,6 +266,28 @@
         <Data Key="id" Type="AutoIncrement">18</Data>
         <Data Key="name" Type="Quote" Translatable="1">Ticket Agent Base Permission</Data>
         <Data Key="comments" Type="Quote" Translatable="1">allows basic ticket access, but requires team specific roles with base permissions</Data>
+        <Data Key="usage_context">1</Data>
+        <Data Key="valid_id">1</Data>
+        <Data Key="create_by">1</Data>
+        <Data Key="create_time">current_timestamp</Data>
+        <Data Key="change_by">1</Data>
+        <Data Key="change_time">current_timestamp</Data>
+    </Insert>
+    <Insert Table="roles">
+        <Data Key="id" Type="AutoIncrement">19</Data>
+        <Data Key="name" Type="Quote" Translatable="1">Textmodule Admin</Data>
+        <Data Key="comments" Type="Quote" Translatable="1">allows to create, edit, delete text modules</Data>
+        <Data Key="usage_context">1</Data>
+        <Data Key="valid_id">1</Data>
+        <Data Key="create_by">1</Data>
+        <Data Key="create_time">current_timestamp</Data>
+        <Data Key="change_by">1</Data>
+        <Data Key="change_time">current_timestamp</Data>
+    </Insert>
+    <Insert Table="roles">
+        <Data Key="id" Type="AutoIncrement">20</Data>
+        <Data Key="name" Type="Quote" Translatable="1">FAQ Admin</Data>
+        <Data Key="comments" Type="Quote" Translatable="1">allows to create, edit, delete FAQ categories</Data>
         <Data Key="usage_context">1</Data>
         <Data Key="valid_id">1</Data>
         <Data Key="create_by">1</Data>
@@ -834,15 +856,6 @@
     <Insert Table="ticket_history_type">
         <Data Key="id" Type="AutoIncrement">18</Data>
         <Data Key="name" Type="Quote">OwnerUpdate</Data>
-        <Data Key="valid_id">1</Data>
-        <Data Key="create_by">1</Data>
-        <Data Key="create_time">current_timestamp</Data>
-        <Data Key="change_by">1</Data>
-        <Data Key="change_time">current_timestamp</Data>
-    </Insert>
-    <Insert Table="ticket_history_type">
-        <Data Key="id" Type="AutoIncrement">19</Data>
-        <Data Key="name" Type="Quote">LoopProtection</Data>
         <Data Key="valid_id">1</Data>
         <Data Key="create_by">1</Data>
         <Data Key="create_time">current_timestamp</Data>
@@ -1578,6 +1591,62 @@
         <Data Key="event_value" Type="Quote">Email</Data>
     </Insert>
 
+    <Insert Table="notification_event">
+        <Data Key="id" Type="AutoIncrement">12</Data>
+        <Data Key="name" Type="Quote" Translatable="1">Customer - Follow Up Rejection</Data>
+        <Data Key="filter" Type="Quote"><![CDATA[
+{ "AND": [
+    { "Field": "SenderTypeID", "Operator": "IN", "Value": [3] },
+    { "Field": "ChannelID", "Operator": "IN", "Value": [2] }
+]}]]></Data>
+        <Data Key="valid_id">2</Data>
+        <Data Key="comments" Type="Quote"></Data>
+        <Data Key="create_by">1</Data>
+        <Data Key="create_time">current_timestamp</Data>
+        <Data Key="change_by">1</Data>
+        <Data Key="change_time">current_timestamp</Data>
+    </Insert>
+    <Insert Table="notification_event_item">
+        <Data Key="notification_id">12</Data>
+        <Data Key="event_key" Type="Quote">Events</Data>
+        <Data Key="event_value" Type="Quote">ArticleCreateFollowUpReject</Data>
+    </Insert>
+    <Insert Table="notification_event_item">
+        <Data Key="notification_id">12</Data>
+        <Data Key="event_key" Type="Quote">Recipients</Data>
+        <Data Key="event_value" Type="Quote"></Data>
+    </Insert>
+    <Insert Table="notification_event_item">
+        <Data Key="notification_id">12</Data>
+        <Data Key="event_key" Type="Quote">RecipientEmail</Data>
+        <Data Key="event_value" Type="Quote">&lt;KIX_ARTICLE_From&gt;</Data>
+    </Insert>
+    <Insert Table="notification_event_item">
+        <Data Key="notification_id">12</Data>
+        <Data Key="event_key" Type="Quote">RecipientSubject</Data>
+        <Data Key="event_value" Type="Quote">1</Data>
+    </Insert>
+    <Insert Table="notification_event_item">
+        <Data Key="notification_id">12</Data>
+        <Data Key="event_key" Type="Quote">SendOnOutOfOffice</Data>
+        <Data Key="event_value" Type="Quote">0</Data>
+    </Insert>
+    <Insert Table="notification_event_item">
+        <Data Key="notification_id">12</Data>
+        <Data Key="event_key" Type="Quote">CreateArticle</Data>
+        <Data Key="event_value" Type="Quote">0</Data>
+    </Insert>
+    <Insert Table="notification_event_item">
+        <Data Key="notification_id">12</Data>
+        <Data Key="event_key" Type="Quote">OncePerDay</Data>
+        <Data Key="event_value" Type="Quote">0</Data>
+    </Insert>
+    <Insert Table="notification_event_item">
+        <Data Key="notification_id">12</Data>
+        <Data Key="event_key" Type="Quote">Transports</Data>
+        <Data Key="event_value" Type="Quote">Email</Data>
+    </Insert>
+
     <!-- notification_event_message - en -->
     <Insert Table="notification_event_message">
         <Data Key="id" Type="AutoIncrement">1</Data>
@@ -1632,7 +1701,7 @@
         <Data Key="notification_id">7</Data>
         <Data Key="content_type" Type="Quote">text/html</Data>
         <Data Key="language" Type="Quote">en</Data>
-        <Data Key="subject" Type="Quote"><![CDATA[Update: <KIX_AGENT_Subject[64]>]]></Data>
+        <Data Key="subject" Type="Quote"><![CDATA[Update: <KIX_LAST_Subject_64>]]></Data>
         <Data Key="text" Type="Quote"><![CDATA[<p>A new article has been added: [&lt;KIX_CONFIG_Ticket::Hook&gt;&lt;KIX_TICKET_TicketNumber&gt;]</p><br/><br/><p>&lt;KIX_TICKET_Title&gt;</p><br/><br/><p>&nbsp;</p><br/><br/><hr /><br/><p>&lt;KIX_AGENT_From&gt; wrote:</p><br/><br/><p>&lt;KIX_AGENT_Body&gt;</p><br/><br/><hr /><br/><p>&nbsp;</p>]]></Data>
     </Insert>
     <Insert Table="notification_event_message">
@@ -1722,7 +1791,7 @@
         <Data Key="notification_id">7</Data>
         <Data Key="content_type" Type="Quote">text/html</Data>
         <Data Key="language" Type="Quote">de</Data>
-        <Data Key="subject" Type="Quote"><![CDATA[Aktualisierung: <KIX_CUSTOMER_Subject_64>]]></Data>
+        <Data Key="subject" Type="Quote"><![CDATA[Aktualisierung: <KIX_LAST_Subject_64>]]></Data>
         <Data Key="text" Type="Quote"><![CDATA[<p>Ein neuer Artikel wurde angelegt: [&lt;KIX_CONFIG_Ticket::Hook&gt;&lt;KIX_TICKET_TicketNumber&gt;]</p><br/><br/><p>&lt;KIX_TICKET_Title&gt;</p><br/><br/><p>&nbsp;</p><br/><br/><hr /><br/><p>&lt;KIX_AGENT_From&gt; schrieb:</p><br/><br/><p>&lt;KIX_AGENT_Body&gt;</p><br/><br/><hr /><br/><p>&nbsp;</p>]]></Data>
     </Insert>
     <Insert Table="notification_event_message">
@@ -1756,6 +1825,22 @@
         <Data Key="language" Type="Quote">de</Data>
         <Data Key="subject" Type="Quote"><![CDATA[Re: <KIX_TICKET_Title>]]></Data>
         <Data Key="text" Type="Quote"><![CDATA[<p>Vielen Dank f&uuml;r Ihre Nachricht. Wir werden Ihr Anliegen so schnell wie m&ouml;glich bearbeiten.</p><br/><br/><p>Ihre Anfrage wird unter der Vorgangsnummer&nbsp;[&lt;KIX_CONFIG_Ticket::Hook&gt;&lt;KIX_TICKET_TicketNumber&gt;] gef&uuml;hrt.</p><br/><br/><p>--&nbsp;</p>]]></Data>
+    </Insert>
+    <Insert Table="notification_event_message">
+        <Data Key="id" Type="AutoIncrement">25</Data>
+        <Data Key="notification_id">12</Data>
+        <Data Key="content_type" Type="Quote">text/html</Data>
+        <Data Key="language" Type="Quote">de</Data>
+        <Data Key="subject" Type="Quote"><![CDATA[Re: <KIX_CUSTOMER_Subject_64> (abgelehnt)]]></Data>
+        <Data Key="text" Type="Quote"><![CDATA[<p>Vielen Dank f&uuml;r Ihre E-Mail. Das Ticket wurde bereits geschlossen. Daher wurde Ihre Nachfrage zwar erfasst, aber es folgt keine Aktion. Bitte erstellen Sie eine neue Anfrage.</p>]]></Data>
+    </Insert>
+    <Insert Table="notification_event_message">
+        <Data Key="id" Type="AutoIncrement">26</Data>
+        <Data Key="notification_id">12</Data>
+        <Data Key="content_type" Type="Quote">text/html</Data>
+        <Data Key="language" Type="Quote">en</Data>
+        <Data Key="subject" Type="Quote"><![CDATA[Re: <KIX_CUSTOMER_Subject_64> (rejected)]]></Data>
+        <Data Key="text" Type="Quote"><![CDATA[<p>Thank you very much for your email. The ticket has already been closed. Therefore, although your follow-up has been recorded, no action is taken. Please create a new request.</p>]]></Data>
     </Insert>
 
 <!-- faq_category -->
@@ -4529,19 +4614,6 @@ DefaultValue:
     </Insert>
 
     <Insert Table="dynamic_field">
-        <Data Key="id" Type="AutoIncrement">10</Data>
-        <Data Key="internal_field">0</Data>
-        <Data Key="name" Type="Quote" Translatable="0">AcknowledgeName</Data>
-        <Data Key="label" Type="Quote" Translatable="1">System Acknowledge Name</Data>
-        <Data Key="field_type" Type="Quote" Translatable="1">Text</Data>
-        <Data Key="object_type" Type="Quote" Translatable="1">Ticket</Data>
-        <Data Key="valid_id">1</Data>
-        <Data Key="create_by">1</Data>
-        <Data Key="create_time">current_timestamp</Data>
-        <Data Key="change_by">1</Data>
-        <Data Key="change_time">current_timestamp</Data>
-    </Insert>
-    <Insert Table="dynamic_field">
         <Data Key="id" Type="AutoIncrement">11</Data>
         <Data Key="internal_field">0</Data>
         <Data Key="name" Type="Quote" Translatable="0">SysMonXAlias</Data>
@@ -4600,6 +4672,26 @@ DefaultValue:
         <Data Key="label" Type="Quote" Translatable="1">System State</Data>
         <Data Key="field_type" Type="Quote" Translatable="1">Text</Data>
         <Data Key="object_type" Type="Quote" Translatable="1">Ticket</Data>
+        <Data Key="valid_id">1</Data>
+        <Data Key="create_by">1</Data>
+        <Data Key="create_time">current_timestamp</Data>
+        <Data Key="change_by">1</Data>
+        <Data Key="change_time">current_timestamp</Data>
+    </Insert>
+    <Insert Table="dynamic_field">
+        <Data Key="id" Type="AutoIncrement">16</Data>
+        <Data Key="internal_field">1</Data>
+        <Data Key="name" Type="Quote" Translatable="0">AddressDomainPattern</Data>
+        <Data Key="label" Type="Quote" Translatable="1">Pattern</Data>
+        <Data Key="field_type" Type="Quote" Translatable="1">Text</Data>
+        <Data Key="object_type" Type="Quote" Translatable="1">Organisation</Data>
+        <Data Key="config" Type="Quote"><![CDATA[
+---
+CountMin: '0'
+CountMax: '25'
+CountDefault: '0'
+DefaultValue:
+        ]]></Data>
         <Data Key="valid_id">1</Data>
         <Data Key="create_by">1</Data>
         <Data Key="create_time">current_timestamp</Data>
@@ -5176,6 +5268,7 @@ DefaultValue:
     <Data Key="field_id">8</Data>
     <Data Key="object_id" Type="Quote">1</Data>
     <Data Key="value_text" Type="Quote">service provider</Data>
+    <Data Key="first_value" >1</Data>
 </Insert>
 
 <Insert Table="html_to_pdf">
@@ -5183,7 +5276,7 @@ DefaultValue:
     <Data Key="object" Type="Quote">Ticket</Data>
     <Data Key="description" Type="Quote"></Data>
     <Data Key="valid_id">1</Data>
-    <Data Key="definition" Type="Quote"><![CDATA[{"Expands":["DynamicField","Article","LinkObject"],"Page":{"Top":"15","Left":"20","Right":"15","Bottom":"15","SpacingHeader":"12","SpacingFooter":"5"},"Header":[{"ID":"PageLogo","Type":"Image","Value":"agent-portal-logo","TypeOf":"DB","Style":{"Width":"2.5rem","Height":"2.5rem","Float":"left"}},{"ID":"PageTitle","Type":"Text","Value":"<KIX_CONFIG_Ticket::Hook><KIX_TICKET_TicketNumber>","Style":{"Size":"0.9rem","Float":"right"}}],"Content":[{"ID":"Title","Type":"Text","Value":"<KIX_TICKET_Title>","Style":{"Size":"1.1rem"}},{"ID":"PrintedBy","Type":"Text","Value":["printed by","<Current_User>","<Current_Time>"],"Join":" ","Translate":true},{"Blocks":[{"ID":"InfoTableLeft","Type":"Table","Include":"DynamicField","Columns":["<Font_Bold>Key","Value"],"Allow":{"State":"KEY","Queue":"KEY","Lock":"KEY","CustomerID":"KEY","Owner":"KEY","Responsoble":"KEY","Type":"KEY","Priority":"KEY"},"Translate":true,"Style":{"Width":"48%","Float":"left"}},{"ID":"InfoTableRight","Type":"Table","Include":"DynamicField","Columns":["<Font_Bold>Key","Value"],"Allow":{"Age":"KEY","Created":"KEY","CreatedBy":"KEY","CustomerID":"KEY","AccountedTime":"KEY","PendingTime":"KEY"},"Translate":true,"Style":{"Width":"50%","Float":"right"}}]},{"Data":"LinkObject","Blocks":[{"ID":"LinkedHeader","Type":"Text","Value":"<Font_Bold>Linked Objects","Translate":true,"Break":true,"Style":{"Size":"1.1em","Color":"gray"}},{"ID":"LinkedTable","Type":"Table","Columns":["<Font_Bold>Key","Value"],"Translate":true,"Join":"<br>"}]},{"Type":"List","Object":"Article","Expand":"DynamicField","Data":"Article","Blocks":[{"ID":"ArticleHeader","Type":"Text","Value":["<Font_Bold>Article","#<Count>"],"Join":" ","Break":true,"Translate":true,"Style":{"Size":"1.1em","Color":"gray"}},{"ID":"ArticleMeta","Type":"Table","Columns":["<Font_Bold>Key","Value"],"Allow":{"From":"KEY","Subject":"KEY","CreateTime":"KEY","Channel":"KEY"},"Translate":true},{"ID":"ArticleBody","Type":"Richtext","Value":"<KIX_ARTICLE_BodyRichtext>"}]}],"Footer":[{"ID":"Paging","Type":"Page","PageOf":false,"Translate":true,"Style":{"Float":"right"}}]}]]></Data>
+    <Data Key="definition" Type="Quote"><![CDATA[{"Expands":["DynamicField","Article","LinkObject","Organisation","Contact"],"Page":{"Top":"15","Left":"20","Right":"15","Bottom":"15","SpacingHeader":"12","SpacingFooter":"5"},"Header":[{"ID":"PageLogo","Type":"Image","Value":"agent-portal-logo","TypeOf":"DB","Style":{"Width":"2.5rem","Height":"2.5rem","Float":"left"}},{"ID":"PageTitle","Type":"Text","Value":"<KIX_CONFIG_Ticket::Hook>Ticket.TicketNumber.Value","Style":{"Size":"0.9rem","Float":"right"}}],"Content":[{"ID":"Title","Type":"Text","Value":"Ticket.Title.Value","Style":{"Size":"1.1rem"}},{"ID":"PrintedBy","Type":"Text","Value":["printed by","<Current_User>","<Current_Time>"],"Join":" ","Translate":true},{"Blocks":[{"ID":"InfoTableLeft","Type":"Table","Include":"DynamicField","SubType":"KeyValue","Columns":["<Class_Key><Font_Bold>Key","<Class_Value>Value"],"Allow":{"State":"KEY","Queue":"KEY","Lock":"KEY","CustomerID":"KEY","Owner":"KEY","Responsoble":"KEY","Type":"KEY","Priority":"KEY"},"Translate":true,"Style":{"Width":"48%","Float":"left","Class":[{"Selector":" .Key","CSS":"width: 40%;"},{"Selector":" .Value","CSS":"min-width: 40%; max-width: 60%;"}]}},{"ID":"InfoTableRight","Type":"Table","Include":"DynamicField","SubType":"KeyValue","Columns":["<Class_Key><Font_Bold>Key","<Class_Value>Value"],"Allow":{"Age":"KEY","Created":"KEY","CreatedBy":"KEY","CustomerID":"KEY","AccountedTime":"KEY","PendingTime":"KEY"},"Translate":true,"Style":{"Width":"50%","Float":"right","Class":[{"Selector":" .Key","CSS":"width: 40%;"},{"Selector":" .Value","CSS":"min-width: 40%; max-width: 60%;"}]}}]},{"Blocks":[{"ID":"CustomerInformation","Type":"Text","Value":["<Font_Bold>Customer Information"],"Join":" ","Break":true,"Translate":true,"Style":{"Size":"1.1em","Color":"gray"}},{"Type":"List","Object":"Organisation","Data":"Organisation","Expand":"DynamicField","Blocks":[{"ID":"Organisation","Type":"Table","SubType":"Custom","Include":"DynamicField","Columns":["<Class_Col1><Font_Bold>","<Class_Col2>","<Class_Col1><Font_Bold>","<Class_Col2>"],"Rows":[["Organisation","Organisation.Name.Value","Customer No. / Type","Organisation.Number.Value / Organisation.DynamicField_Type.Value.0"],["Street","Organisation.Street.Value","ZIP, City, Country","Organisation.Zip.Value, Organisation.City.Value, Organisation.Country.Value"],["","","URL","Organisation.Url.Value"]],"Translate":true,"Style":{"Class":[{"Selector":" .Col1","CSS":"width: 20%;"},{"Selector":" .Col2","CSS":"width: 30%;"}]}}]},{"Type":"List","Object":"Contact","Data":"Contact","Expand":"DynamicField","Blocks":[{"ID":"Contact","Type":"Table","SubType":"Custom","Include":"DynamicField","Columns":["<Class_Col1><Font_Bold>","<Class_Col2>","<Class_Col1><Font_Bold>","<Class_Col2>"],"Rows":[["Title","Contact.Title.Value","Phone","Contact.Phone.Value"],["Contact","Contact.Fullname.Value","Mobile","Contact.Mobile.Value"],["Street","Contact.Street.Value","Email","Contact.Email.Value"],["ZIP, City, Country","Contact.Zip.Value, Contact.City.Value, Contact.Country.Value","",""]],"Translate":true,"Style":{"Class":[{"Selector":" .Col1","CSS":"width: 20%;"},{"Selector":" .Col2","CSS":"width: 30%;"}]}}]}]},{"Data":"LinkObject","Blocks":[{"ID":"LinkedHeader","Type":"Text","Value":"<Font_Bold>Linked Objects","Translate":true,"Break":true,"Style":{"Size":"1.1em","Color":"gray"}},{"ID":"LinkedTable","Type":"Table","SubType":"KeyValue","Columns":["<Class_Key><Font_Bold>Key","Value"],"Translate":true,"Join":"<br>","Style":{"Class":[{"Selector":" .Key","CSS":"width: 20%;"}]}}]},{"Type":"List","Object":"Article","Expand":"DynamicField","Data":"Article","Blocks":[{"ID":"ArticleHeader","Type":"Text","Value":["<Font_Bold>Article","#<Count>"],"Join":" ","Break":true,"Translate":true,"Style":{"Size":"1.1em","Color":"gray"}},{"ID":"ArticleMeta","Type":"Table","SubType":"KeyValue","Columns":["<Class_Key><Font_Bold>Key","<Class_Value>Value"],"Allow":{"From":"KEY","Subject":"KEY","CreateTime":"KEY","Channel":"KEY"},"Style":{"Class":[{"Selector":" .Key","CSS":"width: 20%;"},{"Selector":" .Value","CSS":"min-width: 20%; max-width: 50%;"}]},"Translate":true},{"ID":"ArticleBody","Type":"Richtext","Value":"Article.Body.Value"}]}],"Footer":[{"ID":"Paging","Type":"Page","PageOf":false,"Translate":true,"Style":{"Float":"right"}}]}]]></Data>
     <Data Key="created_by">1</Data>
     <Data Key="created">current_timestamp</Data>
     <Data Key="changed_by">1</Data>
@@ -5194,7 +5287,7 @@ DefaultValue:
     <Data Key="object" Type="Quote">Article</Data>
     <Data Key="description" Type="Quote"></Data>
     <Data Key="valid_id">1</Data>
-    <Data Key="definition" Type="Quote"><![CDATA[{"Expands":["DynamicField"],"Page":{"Top":"15","Left":"20","Right":"15","Bottom":"15","SpacingHeader":"12","SpacingFooter":"5"},"Header":[{"ID":"PageLogo","Type":"Image","Value":"agent-portal-logo","TypeOf":"DB","Style":{"Width":"2.5rem","Height":"2.5rem","Float":"left"}}],"Content":[{"ID":"Subject","Type":"Text","Value":"<KIX_ARTICLE_Subject>","Style":{"Size":"1.1rem"}},{"ID":"PrintedBy","Type":"Text","Value":["printed by","<Current_User>","<Current_Time>"],"Join":" ","Translate":true},{"Blocks":[{"ID":"ArticleMeta","Type":"Table","Columns":["<Font_Bold>Key","Value"],"Allow":{"From":"KEY","Subject":"KEY","CreateTime":"KEY","Channel":"KEY"},"Translate":true},{"ID":"ArticleBody","Type":"Richtext","Value":"<KIX_ARTICLE_BodyRichtext>"}]}],"Footer":[{"ID":"Paging","Type":"Page","PageOf":0,"Translate":true,"Style":{"Float":"right"}}]}]]></Data>
+    <Data Key="definition" Type="Quote"><![CDATA[{"Expands":["DynamicField"],"Page":{"Top":"15","Left":"20","Right":"15","Bottom":"15","SpacingHeader":"12","SpacingFooter":"5"},"Header":[{"ID":"PageLogo","Type":"Image","Value":"agent-portal-logo","TypeOf":"DB","Style":{"Width":"2.5rem","Height":"2.5rem","Float":"left"}}],"Content":[{"ID":"Subject","Type":"Text","Value":"Article.Subject.Value","Style":{"Size":"1.1rem"}},{"ID":"PrintedBy","Type":"Text","Value":["printed by","<Current_User>","<Current_Time>"],"Join":" ","Translate":true},{"Blocks":[{"ID":"ArticleMeta","Type":"Table","SubType":"KeyValue","Columns":["<Class_Key><Font_Bold>Key","<Class_Value>Value"],"Allow":{"From":"KEY","Subject":"KEY","CreateTime":"KEY","Channel":"KEY"},"Style":{"Class":[{"Selector":" .Key","CSS":"width: 20%;"},{"Selector":" .Value","CSS":"min-width: 20%; max-width: 50%;"}]},"Translate":true},{"ID":"ArticleBody","Type":"Richtext","Value":"Article.Body.Value"}]}],"Footer":[{"ID":"Paging","Type":"Page","PageOf":0,"Translate":true,"Style":{"Float":"right"}}]}]]></Data>
     <Data Key="created_by">1</Data>
     <Data Key="created">current_timestamp</Data>
     <Data Key="changed_by">1</Data>
@@ -5377,6 +5470,16 @@ DefaultValue:
     <Data Key="type_id">2</Data>
     <Data Key="target" Type="Quote"><![CDATA[/system/config/definitions/*{SysConfigOptionDefinition.AccessLevel EQ confidential}]]></Data>
     <Data Key="value">0</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
+    <Data Key="role_id">3</Data>
+    <Data Key="type_id">1</Data>
+    <Data Key="target" Type="Quote"><![CDATA[/objectsearch]]></Data>
+    <Data Key="value">2</Data>
     <Data Key="create_by">1</Data>
     <Data Key="create_time">current_timestamp</Data>
     <Data Key="change_by">1</Data>
@@ -5976,16 +6079,6 @@ DefaultValue:
     <Data Key="role_id">5</Data>
     <Data Key="type_id">4</Data>
     <Data Key="target" Type="Quote"><![CDATA[*]]></Data>
-    <Data Key="value">15</Data>
-    <Data Key="create_by">1</Data>
-    <Data Key="create_time">current_timestamp</Data>
-    <Data Key="change_by">1</Data>
-    <Data Key="change_time">current_timestamp</Data>
-</Insert>
-<Insert Table="role_permission">
-    <Data Key="role_id">16</Data>
-    <Data Key="type_id">1</Data>
-    <Data Key="target" Type="Quote"><![CDATA[/tickets]]></Data>
     <Data Key="value">15</Data>
     <Data Key="create_by">1</Data>
     <Data Key="create_time">current_timestamp</Data>
@@ -6646,6 +6739,26 @@ DefaultValue:
     <Data Key="role_id">17</Data>
     <Data Key="type_id">2</Data>
     <Data Key="target" Type="Quote"><![CDATA[/tickets/*{Ticket.QueueID IN [1,2]}]]></Data>
+    <Data Key="value">15</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
+    <Data Key="role_id">17</Data>
+    <Data Key="type_id">4</Data>
+    <Data Key="target" Type="Quote"><![CDATA[1]]></Data>
+    <Data Key="value">15</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
+    <Data Key="role_id">17</Data>
+    <Data Key="type_id">4</Data>
+    <Data Key="target" Type="Quote"><![CDATA[2]]></Data>
     <Data Key="value">15</Data>
     <Data Key="create_by">1</Data>
     <Data Key="create_time">current_timestamp</Data>
@@ -7733,6 +7846,36 @@ DefaultValue:
     <Data Key="change_time">current_timestamp</Data>
 </Insert>
 <Insert Table="role_permission">
+    <Data Key="role_id">13</Data>
+    <Data Key="type_id">1</Data>
+    <Data Key="target" Type="Quote"><![CDATA[/objectsearch]]></Data>
+    <Data Key="value">2</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
+    <Data Key="role_id">13</Data>
+    <Data Key="type_id">1</Data>
+    <Data Key="target" Type="Quote"><![CDATA[/contacts]]></Data>
+    <Data Key="value">2</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
+    <Data Key="role_id">13</Data>
+    <Data Key="type_id">2</Data>
+    <Data Key="target" Type="Quote"><![CDATA[/contacts/*{Contact.OrganisationIDs !IN $CurrentUser.Contact.RelevantOrganisationID}]]></Data>
+    <Data Key="value">0</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
     <Data Key="role_id">14</Data>
     <Data Key="type_id">1</Data>
     <Data Key="target" Type="Quote"><![CDATA[/reporting]]></Data>
@@ -7927,6 +8070,36 @@ DefaultValue:
     <Data Key="type_id">1</Data>
     <Data Key="target" Type="Quote"><![CDATA[/system/roles]]></Data>
     <Data Key="value">6</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
+    <Data Key="role_id">19</Data>
+    <Data Key="type_id">1</Data>
+    <Data Key="target" Type="Quote"><![CDATA[/system/textmodules]]></Data>
+    <Data Key="value">15</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
+    <Data Key="role_id">20</Data>
+    <Data Key="type_id">1</Data>
+    <Data Key="target" Type="Quote"><![CDATA[/system/faq]]></Data>
+    <Data Key="value">15</Data>
+    <Data Key="create_by">1</Data>
+    <Data Key="create_time">current_timestamp</Data>
+    <Data Key="change_by">1</Data>
+    <Data Key="change_time">current_timestamp</Data>
+</Insert>
+<Insert Table="role_permission">
+    <Data Key="role_id">20</Data>
+    <Data Key="type_id">1</Data>
+    <Data Key="target" Type="Quote"><![CDATA[/system/objecticons]]></Data>
+    <Data Key="value">15</Data>
     <Data Key="create_by">1</Data>
     <Data Key="create_time">current_timestamp</Data>
     <Data Key="change_by">1</Data>

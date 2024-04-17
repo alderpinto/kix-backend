@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2023 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -53,13 +53,15 @@ sub GetPossibleExpands {
 sub _GetDynamicFields {
     my ( $Self, %Param ) = @_;
 
+    return 1 if !$Param{Expands};
+    return 1 if IsHashRefWithData($Param{Data}->{Expands}->{DynamicField});
+
     # get dynamic field objects
     my $DynamicFieldObject        = $Kernel::OM->Get('DynamicField');
     my $DynamicFieldBackendObject = $Kernel::OM->Get('DynamicField::Backend');
 
-    my $Type  = $Param{Type};
-    my $IDKey = $Param{IDKey};
-    my $ID    = $Param{$IDKey};
+    my $Type = $Param{Type};
+    my $ID   = $Param{ObjectID};
 
     # get all dynamic fields for the object type xyz
     my $DynamicFieldList = $DynamicFieldObject->DynamicFieldListGet(

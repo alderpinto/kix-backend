@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -80,10 +80,12 @@ sub ValidateConfig {
 
     # check needed stuff
     if ( !$Param{Config} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Got no Config!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Got no Config!',
+            );
+        }
         return;
     }
 
@@ -92,19 +94,23 @@ sub ValidateConfig {
     # validate the columns
     foreach my $Option ( qw(Columns FieldNames) ) {
         if ( !IsArrayRefWithData($Param{Config}->{$Option}) ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "ResolveDynamicFieldValue: $Option is not an ARRAY ref or doesn't contain any configuration!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "ResolveDynamicFieldValue: $Option is not an ARRAY ref or doesn't contain any configuration!",
+                );
+            }
             return;
         }
     }
 
     if ( scalar @{$Param{Config}->{Columns}} != scalar @{$Param{Config}->{FieldNames}} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "ResolveDynamicFieldValue: number of list items in Columns and FieldNames is different!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "ResolveDynamicFieldValue: number of list items in Columns and FieldNames is different!",
+            );
+        }
         return;
     }
 

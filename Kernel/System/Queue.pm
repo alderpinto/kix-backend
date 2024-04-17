@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -21,15 +21,15 @@ use base qw(
     Kernel::System::BasePermissionHandler
 );
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'Main',
-    'StandardTemplate',
-    'SysConfig',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    Main
+    SysConfig
+    Valid
 );
 
 =head1 NAME
@@ -80,7 +80,6 @@ sub new {
     #  these settings are used by the CLI version         #
     # --------------------------------------------------- #
     $Self->{QueueDefaults} = {
-        Calendar            => '',
         UnlockTimeout       => 0,
         FirstResponseTime   => 0,
         FirstResponseNotify => 0,
@@ -352,10 +351,12 @@ sub QueueLookup {
 
     # check needed stuff
     if ( !$Param{Queue} && !$Param{QueueID} && !$Param{SystemAddressID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Got no Queue or QueueID or SystemAddressID!'
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Got no Queue or QueueID or SystemAddressID!'
+            );
+        }
         return;
     }
 
@@ -410,7 +411,6 @@ add queue with attributes
     $QueueObject->QueueAdd(
         Name                => 'Some::Queue',
         ValidID             => 1,
-        Calendar            => 'Calendar1', # (optional)
         UnlockTimeout       => 480,         # (optional)
         FollowUpID          => 3,           # possible (1), reject (2) or new ticket (3) (optional, default 0)
         FollowUpLock        => 0,           # yes (1) or no (0) (optional, default 0)
@@ -429,7 +429,7 @@ sub QueueAdd {
     # check if this request is from web and not from command line
     if ( !$Param{NoDefaultValues} ) {
         for (
-            qw(UnlockTimeout FollowUpLock SystemAddressID Signature FollowUpID FollowUpLock DefaultSignKey Calendar)
+            qw(UnlockTimeout FollowUpLock SystemAddressID Signature FollowUpID FollowUpLock DefaultSignKey)
             )
         {
 
@@ -442,10 +442,12 @@ sub QueueAdd {
 
     for (qw(Name SystemAddressID ValidID UserID FollowUpID)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -456,19 +458,23 @@ sub QueueAdd {
 
     # check queue name
     if ( $Param{Name} =~ /::$/i ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Invalid Queue name '$Param{Name}'!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Invalid Queue name '$Param{Name}'!",
+            );
+        }
         return;
     }
 
     # check if a queue with this name already exists
     if ( $Self->NameExistsCheck( Name => $Param{Name} ) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "A queue with name '$Param{Name}' already exists!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "A queue with name '$Param{Name}' already exists!"
+            );
+        }
         return;
     }
 
@@ -478,14 +484,14 @@ sub QueueAdd {
 
     return if !$DBObject->Do(
         SQL => 'INSERT INTO queue (name, unlock_timeout, system_address_id, '
-            . ' calendar_name, default_sign_key, signature, follow_up_id, '
+            . ' default_sign_key, signature, follow_up_id, '
             . ' follow_up_lock, valid_id, comments, create_time, create_by, '
             . ' change_time, change_by) VALUES '
-            . ' (?, ?, ?, ?, ?, ?, ?, ?, ?, '
+            . ' (?, ?, ?, ?, ?, ?, ?, ?, '
             . ' ?, current_timestamp, ?, current_timestamp, ?)',
         Bind => [
             \$Param{Name},     \$Param{UnlockTimeout}, \$Param{SystemAddressID},
-            \$Param{Calendar}, \$Param{DefaultSignKey}, \$Param{Signature},
+            \$Param{DefaultSignKey}, \$Param{Signature},
             \$Param{FollowUpID},        \$Param{FollowUpLock},        \$Param{ValidID},
             \$Param{Comment},           \$Param{UserID},              \$Param{UserID},
         ],
@@ -522,7 +528,7 @@ sub QueueAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Queue',
         ObjectID  => $QueueID,
@@ -584,7 +590,7 @@ sub QueueGet {
     my $SQL = 'SELECT q.id, q.name, q.unlock_timeout, '
         . 'q.system_address_id, q.signature, q.comments, q.valid_id, '
         . 'q.follow_up_id, q.follow_up_lock, '
-        . 'q.default_sign_key, q.calendar_name, q.create_by, q.create_time, q.change_by, q.change_time FROM queue q, '
+        . 'q.default_sign_key, q.create_by, q.create_time, q.change_by, q.change_time FROM queue q, '
         . 'system_address sa WHERE q.system_address_id = sa.id AND ';
 
     if ( $Param{ID} ) {
@@ -619,11 +625,10 @@ sub QueueGet {
             FollowUpID          => $Data[7],
             FollowUpLock        => $Data[8],
             DefaultSignKey      => $Data[9],
-            Calendar            => $Data[10] || '',
-            CreateBy            => $Data[11],
-            CreateTime          => $Data[12],
-            ChangeBy            => $Data[13],
-            ChangeTime          => $Data[14],
+            CreateBy            => $Data[10],
+            CreateTime          => $Data[11],
+            ChangeBy            => $Data[12],
+            ChangeTime          => $Data[13],
         );
     }
 
@@ -690,7 +695,7 @@ sub QueueListGet {
     my $SQL = 'SELECT q.id, q.name, q.unlock_timeout, '
         . 'q.system_address_id, q.signature, q.comments, q.valid_id, '
         . 'q.follow_up_id, q.follow_up_lock, '
-        . 'q.default_sign_key, q.calendar_name, q.create_by, q.create_time, q.change_by, q.change_time FROM queue q, '
+        . 'q.default_sign_key, q.create_by, q.create_time, q.change_by, q.change_time FROM queue q, '
         . 'system_address sa WHERE q.system_address_id = sa.id AND q.id IN ('.(join( ',', map { '?' } @{$Param{IDs}})).')';
 
     # get database object
@@ -705,7 +710,7 @@ sub QueueListGet {
     my $Result = $Kernel::OM->Get('DB')->FetchAllArrayRef(
         Columns => [
             'QueueID', 'Name', 'UnlockTimeout', 'SystemAddressID', 'Signature', 'Comment', 'ValidID',
-            'FollowUpID', 'FollowUpLock', 'DefaultSignKey', 'Calendar', 'CreateBy', 'CreateTime', 'ChangeBy', 'ChangeTime'
+            'FollowUpID', 'FollowUpLock', 'DefaultSignKey', 'CreateBy', 'CreateTime', 'ChangeBy', 'ChangeTime'
         ],
     );
 
@@ -728,7 +733,6 @@ update queue attributes
         QueueID             => 123,
         Name                => 'Some::Queue',
         ValidID             => 1,
-        Calendar            => '1', # (optional) default ''
         SystemAddressID     => 1,
         Signature           => '',
         UserID              => 123,
@@ -747,15 +751,14 @@ sub QueueUpdate {
     my ( $Self, %Param ) = @_;
 
     # check needed stuff
-    for (
-        qw(QueueID Name ValidID SystemAddressID UserID FollowUpID)
-        )
-    {
+    for (qw(QueueID Name ValidID SystemAddressID UserID FollowUpID)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -773,19 +776,18 @@ sub QueueUpdate {
     # DefaultSignKey   '' || 'string'
     $Param{DefaultSignKey} = $Param{DefaultSignKey} || '';
 
-    # Calendar string  '', '1', '2', '3', '4', '5'  default ''
-    $Param{Calendar} ||= '';
-
     # cleanup queue name
     $Param{Name} =~ s/(\n|\r)//g;
     $Param{Name} =~ s/\s$//g;
 
     # check queue name
     if ( $Param{Name} =~ /::$/i ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Invalid Queue name '$Param{Name}'!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Invalid Queue name '$Param{Name}'!",
+            );
+        }
         return;
     }
 
@@ -799,12 +801,13 @@ sub QueueUpdate {
             ID   => $Param{QueueID},
             Name => $Param{Name}
         )
-        )
-    {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "A queue with name '$Param{Name}' already exists!"
-        );
+    ) {
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "A queue with name '$Param{Name}' already exists!"
+            );
+        }
         return;
     }
 
@@ -817,14 +820,14 @@ sub QueueUpdate {
             UPDATE queue
             SET name = ?, comments = ?, unlock_timeout = ?, follow_up_id = ?,
                 follow_up_lock = ?, system_address_id = ?,
-                calendar_name = ?, default_sign_key = ?, signature = ?,
-                valid_id = ?, change_time = current_timestamp, change_by = ?
+                default_sign_key = ?, signature = ?, valid_id = ?,
+                change_time = current_timestamp, change_by = ?
             WHERE id = ?',
         Bind => [
-            \$Param{Name}, \$Param{Comment}, \$Param{UnlockTimeout},
-            \$Param{FollowUpID},        \$Param{FollowUpLock},        \$Param{SystemAddressID},
-            \$Param{Calendar},          \$Param{DefaultSignKey},      \$Param{Signature},
-            \$Param{ValidID},           \$Param{UserID},              \$Param{QueueID},
+            \$Param{Name},           \$Param{Comment},      \$Param{UnlockTimeout},
+            \$Param{FollowUpID},     \$Param{FollowUpLock}, \$Param{SystemAddressID},
+            \$Param{DefaultSignKey}, \$Param{Signature},    \$Param{ValidID},
+            \$Param{UserID},         \$Param{QueueID},
         ],
     );
 
@@ -877,17 +880,11 @@ sub QueueUpdate {
     }
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Queue',
         ObjectID  => $Param{QueueID},
     );
-
-    # check all SysConfig options
-    #return 1 if !$Param{CheckSysConfig};
-
-    # check all SysConfig options and correct them automatically if necessary
-    #$Kernel::OM->Get('SysConfig')->ConfigItemCheckAll();
 
     return 1;
 }
@@ -987,7 +984,7 @@ sub QueuePreferencesSet {
     my $Result = $Self->{PreferencesObject}->QueuePreferencesSet(%Param);
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Queue.Preference',
         ObjectID  => $Param{QueueID}.'::'.$Param{Key},
@@ -1044,15 +1041,10 @@ sub NameExistsCheck {
     );
 
     # fetch the result
-    my $Flag;
     while ( my @Row = $DBObject->FetchrowArray() ) {
         if ( !$Param{ID} || $Param{ID} ne $Row[0] ) {
-            $Flag = 1;
+            return 1;
         }
-    }
-
-    if ($Flag) {
-        return 1;
     }
 
     return 0;
@@ -1085,7 +1077,7 @@ sub QueueDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'Queue',
         ObjectID  => $Param{QueueID},

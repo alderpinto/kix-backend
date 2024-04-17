@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -245,11 +245,6 @@ sub IsDeeply {
         return;
     }
 
-    my $Diff = $Self->_DataDiff(
-        Data1 => $Test,
-        Data2 => $ShouldBe,
-    );
-
     if ( !defined $Test && !defined $ShouldBe ) {
         $Self->_Print( 1, "$Name (is 'undef')" );
         return 1;
@@ -262,7 +257,12 @@ sub IsDeeply {
         $Self->_Print( 0, "$Name (is defined should be 'undef')" );
         return;
     }
-    elsif ( !$Diff ) {
+
+    my $Diff = $Self->_DataDiff(
+        Data1 => $Test,
+        Data2 => $ShouldBe,
+    );
+    if ( !$Diff ) {
         $Self->_Print( 1, "$Name matches expected value" );
         return 1;
     }
@@ -523,6 +523,13 @@ sub _DataDiff {
                     return 1 if $Self->_DataDiff(
                         Data1 => $A[$Count],
                         Data2 => $B[$Count]
+                    );
+                    next COUNT;
+                }
+                elsif ( ref $A[$Count] eq 'SCALAR' && ref $B[$Count] eq 'SCALAR' ) {
+                    return 1 if $Self->_DataDiff(
+                        Data1 => ${ $A[$Count] },
+                        Data2 => ${ $A[$Count] }
                     );
                     next COUNT;
                 }

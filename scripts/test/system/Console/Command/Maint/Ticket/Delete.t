@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -15,12 +15,10 @@ use utf8;
 use vars (qw($Self));
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # get needed object
 my $CommandObject = $Kernel::OM->Get('Console::Command::Maint::Ticket::Delete');
@@ -60,6 +58,12 @@ for ( 1 .. 4 ) {
     push @Tickets, \%TicketHash;
 }
 
+# silence console output
+local *STDOUT;
+local *STDERR;
+open STDOUT, '>>', "/dev/null";
+open STDERR, '>>', "/dev/null";
+
 my $ExitCode = $CommandObject->Execute();
 
 $Self->Is(
@@ -76,10 +80,21 @@ $Self->Is(
     "Maint::Ticket::Delete exit code - delete by --ticket-id options.",
 );
 
-my %TicketIDs = $TicketObject->TicketSearch(
+my %TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType   => 'Ticket',
     Result       => 'HASH',
-    ContactLogin => $ContactID,
+    Search       => {
+        AND => [
+            {
+                Field    => 'ContactID',
+                Operator => 'EQ',
+                Type     => 'NUMERIC',
+                VALUE    => $ContactID
+            }
+        ]
+    },
     UserID       => 1,
+    UserType     => 'Agent'
 );
 
 $Self->False(
@@ -100,10 +115,21 @@ $Self->Is(
     "Maint::Ticket::Delete exit code - delete by --ticket-number options.",
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result            => 'HASH',
-    ContactLogin => $ContactID,
-    UserID            => 1,
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType   => 'Ticket',
+    Result       => 'HASH',
+    Search       => {
+        AND => [
+            {
+                Field    => 'ContactID',
+                Operator => 'EQ',
+                Type     => 'NUMERIC',
+                VALUE    => $ContactID
+            }
+        ]
+    },
+    UserID       => 1,
+    UserType     => 'Agent'
 );
 
 $Self->False(
@@ -127,11 +153,10 @@ $Self->Is(
     "Maint::Ticket::Delete exit code - try to delete with wrong ticket numbers and ticket IDs.",
 );
 
-# cleanup is done by RestoreDatabase
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
-
-
 
 =back
 

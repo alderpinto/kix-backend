@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -65,11 +65,13 @@ sub Validate {
     if ( $Param{Attribute} eq 'HistoryTypeID' ) {
         $Found = $Kernel::OM->Get('Ticket')->HistoryTypeLookup(
             TypeID => $Param{Data}->{$Param{Attribute}},
+            Silent => 1,
         );
     }
     elsif ( $Param{Attribute} eq 'HistoryType' ) {
         $Found = $Kernel::OM->Get('Ticket')->HistoryTypeLookup(
-            Type => $Param{Data}->{$Param{Attribute}},
+            Type   => $Param{Data}->{$Param{Attribute}},
+            Silent => 1,
         );
     }
     else {

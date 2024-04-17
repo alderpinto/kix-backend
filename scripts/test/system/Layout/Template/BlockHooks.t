@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -17,11 +17,6 @@ use vars (qw($Self));
 use File::Basename qw();
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 my @Tests = (
@@ -95,12 +90,12 @@ for my $Test (@Tests) {
 
     $Kernel::OM->ObjectsDiscard();
 
+    my $LayoutObject = $Kernel::OM->Get('Output::HTML::Layout');
+
     $Kernel::OM->Get('Config')->Set(
         Key   => 'Frontend::Template::GenerateBlockHooks',
         Value => $Test->{HookConfig},
     );
-
-    my $LayoutObject = $Kernel::OM->Get('Output::HTML::Layout');
 
     # call Output() once so that the TT objects are created.
     $LayoutObject->Output( Template => '' );
@@ -126,8 +121,6 @@ for my $Test (@Tests) {
         $Test->{Name},
     );
 }
-
-# cleanup cache is done by RestoreDatabase
 
 1;
 

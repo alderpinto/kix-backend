@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -324,10 +324,12 @@ sub NotificationAdd {
     # check needed stuff
     for my $Argument (qw(Name Data Message ValidID UserID)) {
         if ( !$Param{$Argument} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Argument!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $Argument!",
+                );
+            }
             return;
         }
     }
@@ -337,19 +339,23 @@ sub NotificationAdd {
         Name => $Param{Name},
     );
     if (%Check) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Can't add notification '$Param{Name}', notification already exists!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Can't add notification '$Param{Name}', notification already exists!",
+            );
+        }
         return;
     }
 
     # check message parameter
     if ( !IsHashRefWithData( $Param{Message} ) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Need Message!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Need Message!",
+            );
+        }
         return;
     }
 
@@ -360,10 +366,12 @@ sub NotificationAdd {
 
             # error if message data is incomplete
             if ( !$Param{Message}->{$Language}->{$Argument} ) {
-                $Kernel::OM->Get('Log')->Log(
-                    Priority => 'error',
-                    Message  => "Need Message argument '$Argument' for language '$Language'!",
-                );
+                if ( !$Param{Silent} ) {
+                    $Kernel::OM->Get('Log')->Log(
+                        Priority => 'error',
+                        Message  => "Need Message argument '$Argument' for language '$Language'!",
+                    );
+                }
                 return;
             }
 
@@ -408,10 +416,12 @@ sub NotificationAdd {
 
     # error handling
     if ( !$ID ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Could not get ID for just added notification '$Param{Name}'!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Could not get ID for just added notification '$Param{Name}'!",
+            );
+        }
         return;
     }
 

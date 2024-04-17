@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -86,53 +86,6 @@ sub ValueLookup {
     my $Value = $ItemList->{ $Param{Value} };
 
     return $Value;
-}
-
-=item StatsAttributeCreate()
-
-create a attribute array for the stats framework
-
-    my $Attribute = $BackendObject->StatsAttributeCreate(
-        Key  => 'Key::Subkey',
-        Name => 'Name',
-        Item => $ItemRef,
-    );
-
-=cut
-
-sub StatsAttributeCreate {
-    my ( $Self, %Param ) = @_;
-
-    # check needed stuff
-    for my $Argument (qw(Key Name Item)) {
-        if ( !$Param{$Argument} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Argument!",
-            );
-            return;
-        }
-    }
-
-    # get item list
-    my $ItemList = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => $Param{Item}->{Input}->{Class} || '',
-    );
-
-    # create attribute
-    my $Attribute = [
-        {
-            Name             => $Param{Name},
-            UseAsXvalue      => 1,
-            UseAsValueSeries => 1,
-            UseAsRestriction => 1,
-            Element          => $Param{Key},
-            Block            => 'MultiSelectField',
-            Values           => $ItemList || {},
-        },
-    ];
-
-    return $Attribute;
 }
 
 =item ExportSearchValuePrepare()
@@ -233,7 +186,8 @@ sub ImportValuePrepare {
 
     # get item list
     my $ItemList = $Kernel::OM->Get('GeneralCatalog')->ItemList(
-        Class => $Param{Item}->{Input}->{Class} || '',
+        Class  => $Param{Item}->{Input}->{Class} || q{},
+        Silent => $Param{Silent}
     );
 
     # reverse the list
@@ -242,6 +196,7 @@ sub ImportValuePrepare {
     my $GeneralCatalogID = $Name2ID{ $Param{Value} };
 
     if ( !$GeneralCatalogID ) {
+        return if $Param{Silent};
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "General catalog lookup of'$Param{Value}' failed!",

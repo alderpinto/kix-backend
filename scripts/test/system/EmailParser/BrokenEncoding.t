@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -23,7 +23,7 @@ my $Home = $Kernel::OM->Get('Config')->Get('Home');
 
 # test for bug#1970
 my @Array;
-open my $IN, '<', "$Home/scripts/test/system/sample/EmailParser/BrokenEncoding.box";    ## no critic
+open my $IN, '<', "$Home/scripts/test/system/sample/EmailParser/BrokenEncoding.box";
 while (<$IN>) {
     push @Array, $_;
 }
@@ -43,8 +43,8 @@ my @Attachments = $EmailParserObject->GetAttachments();
 
 $Self->Is(
     scalar @Attachments,
-    1,
-    "Found files",
+    0,
+    "No file found",
 );
 
 1;

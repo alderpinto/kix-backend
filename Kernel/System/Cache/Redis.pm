@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -17,6 +17,7 @@ use MIME::Base64;
 use Digest::MD5 qw();
 use Time::HiRes;
 use utf8;
+use Encode;
 
 umask 002;
 
@@ -80,6 +81,9 @@ sub Set {
         utf8::encode($Value);
         $Value = '__b64raw::'.MIME::Base64::encode_base64( $Value );
     }
+    else {
+        utf8::encode($Value);
+    }
 
     if ( $TTL > 0 ) {
         $Self->_RedisCall('hset', $Self->{CachePrefix}.$Param{Type}, $PreparedKey, $Value);
@@ -108,7 +112,11 @@ sub Get {
 
     my $Value = $Self->_RedisCall('hget', $Self->{CachePrefix}.$Param{Type}, $PreparedKey);
 
-    return $Value if !$Value || index($Value, '__b64') != 0;
+    return $Value if ( !$Value );
+    if ( index($Value, '__b64') != 0 ) {
+        utf8::decode($Value);
+        return $Value;
+    }
 
     # restore Value
     my $Result;
@@ -236,7 +244,9 @@ sub GetKeysForType {
         else {
             ($Cursor, $Keys) = @{$Self->_RedisCall('scan', $Cursor) || []};
         }
-        push @Result, @{$Keys};
+        if ( IsArrayRefWithData($Keys) ) {
+            push @Result, @{$Keys};
+        }
     } while ( $Cursor );
 
     return @Result;
@@ -328,13 +338,30 @@ sub _PrepareRedisKey {
         return $Param{Key};
     }
 
+    if ( !utf8::downgrade($Param{Key}, 1) ) {
+        utf8::encode($Param{Key});
+        $Param{Key} = MIME::Base64::encode_base64( $Param{Key} );
+    }
+
+    my $SourceKey = $Param{Key};
     my $Key;
+    my $Counter = 0;
+
+    PREPARE:
     eval {
-        $Key = Digest::MD5::md5_hex($Self->{CachePrefix}.$Param{Key});
+        $Key = Digest::MD5::md5_hex($Self->{CachePrefix}.$SourceKey);
     };
-    if ( $@ ) {
+    if ( $@ && $@ =~ /Wide character in subroutine entry/ && $Counter++ < 5 ) {
+        # we need some special handling here
+        $SourceKey = Encode::encode_utf8($SourceKey);
+
+        # repeat the key preparation
+        goto PREPARE;
+    }
+    elsif ( $@ ) {
         print STDERR "($$) Redis: error in preparing cache key (Key: $Param{Key}, Error: $@)\n";
     }
+
     return $Key;
 }
 

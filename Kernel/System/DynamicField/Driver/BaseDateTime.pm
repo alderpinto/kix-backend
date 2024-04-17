@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -85,12 +85,15 @@ sub ValueSet {
         my @ValueDateTime;
         for my $Item (@Values) {
             my $Valid = $Self->ValueValidate(
-                Value => $Item,
-                UserID => $Param{UserID},
-                DynamicFieldConfig => $Param{DynamicFieldConfig}
+                Value              => $Item,
+                UserID             => $Param{UserID},
+                DynamicFieldConfig => $Param{DynamicFieldConfig},
+                Silent             => $Param{Silent} || 0
             );
 
             if (!$Valid) {
+                return if $Param{Silent};
+
                 $Kernel::OM->Get('Log')->Log(
                     Priority => 'error',
                     Message  => "The value for the field is invalid!"
@@ -106,6 +109,7 @@ sub ValueSet {
             ObjectID => $Param{ObjectID},
             Value    => \@ValueDateTime,
             UserID   => $Param{UserID},
+            Silent   => $Param{Silent} || 0
         );
     } else {
 
@@ -114,6 +118,7 @@ sub ValueSet {
             FieldID  => $Param{DynamicFieldConfig}->{ID},
             ObjectID => $Param{ObjectID},
             UserID   => $Param{UserID},
+            Silent   => $Param{Silent} || 0
         );
     }
 
@@ -130,7 +135,8 @@ sub ValueValidate {
         Value => {
             ValueDateTime => $Param{Value},
         },
-        UserID => $Param{UserID}
+        UserID => $Param{UserID},
+        Silent => $Param{Silent} || 0
     );
 
     if (!$Param{SearchValidation} && IsStringWithData($Param{Value}) && $DateRestriction) {
@@ -144,6 +150,8 @@ sub ValueValidate {
         my $SystemTime = $TimeObject->SystemTime();
 
         if ( $DateRestriction eq 'DisableFutureDates' && $ValueSystemTime > $SystemTime ) {
+            return if $Param{Silent};
+
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message =>
@@ -152,6 +160,8 @@ sub ValueValidate {
             return;
         }
         elsif ( $DateRestriction eq 'DisablePastDates' && $ValueSystemTime < $SystemTime ) {
+            return if $Param{Silent};
+
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message =>
@@ -164,46 +174,24 @@ sub ValueValidate {
     return $Success;
 }
 
-sub SearchSQLGet {
+
+sub SearchSQLSearchFieldGet {
     my ( $Self, %Param ) = @_;
 
-    my %Operators = (
-        Equals            => '=',
-        GreaterThan       => '>',
-        GreaterThanEquals => '>=',
-        SmallerThan       => '<',
-        SmallerThanEquals => '<=',
-    );
-
-    if ( $Operators{ $Param{Operator} } ) {
-        my $SearchTerm = $Param{SearchTerm};
-
-        # calculate relative times
-        my $SystemTime = $Kernel::OM->Get('Time')->TimeStamp2SystemTime(
-            String => $SearchTerm
-        );
-        $SearchTerm = $Kernel::OM->Get('Time')->SystemTime2TimeStamp(
-            SystemTime => $SystemTime
-        );
-
-        my $SQL = " $Param{TableAlias}.value_date $Operators{$Param{Operator}} '";
-        $SQL .= $Kernel::OM->Get('DB')->Quote( $SearchTerm ) . "' ";
-        return $SQL;
-    }
-
-    $Kernel::OM->Get('Log')->Log(
-        'Priority' => 'error',
-        'Message'  => "Unsupported Operator $Param{Operator}",
-    );
-
-    return;
+    return {
+        Column => "$Param{TableAlias}.value_date"
+    };
 }
 
-sub SearchSQLOrderFieldGet {
+sub SearchSQLSortFieldGet {
     my ( $Self, %Param ) = @_;
 
-    return "$Param{TableAlias}.value_date";
+    return {
+        Select  => ["$Param{TableAlias}.value_date"],
+        OrderBy => ["$Param{TableAlias}.value_date"]
+    };
 }
+
 sub DisplayValueRender {
     my ( $Self, %Param ) = @_;
 

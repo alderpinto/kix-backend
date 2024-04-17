@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -21,16 +21,20 @@ my $CommandObject = $Kernel::OM->Get('Console::Command::Admin::Role::AssignUser'
 my ( $Result, $ExitCode );
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 my $RandomName = $Helper->GetRandomID();
 my $UserRand   = 'user' . $RandomName;
 my $RoleRand   = 'role' . $RandomName;
+
+# silence console output
+local *STDOUT;
+local *STDERR;
+open STDOUT, '>>', "/dev/null";
+open STDERR, '>>', "/dev/null";
 
 # try to execute command without any options
 $ExitCode = $CommandObject->Execute();
@@ -90,7 +94,8 @@ $Self->Is(
     "Minimum options (parameters OK: linked user $UserRand to role $RoleRand)",
 );
 
-# cleanup is done by RestoreDatabase
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

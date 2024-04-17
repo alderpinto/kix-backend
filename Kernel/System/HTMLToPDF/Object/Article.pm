@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2023 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -71,9 +71,13 @@ sub DataGet {
     if ( IsArrayRefWithData($Param{Expands}) ) {
         %Expands = map { $_ => 1 } @{$Param{Expands}};
     }
-    elsif( $Param{Include} ) {
+    elsif( $Param{Expands} ) {
         %Expands = map { $_ => 1 } split( /[,]/smx, $Param{Expands});
     }
+
+    my %ExpendFunc = (
+        DynamicField => '_GetDynamicFields',
+    );
 
     if (
         $Param{Filters}
@@ -96,14 +100,15 @@ sub DataGet {
             StripPlainBodyAsAttachment => 1,
         );
 
-        # html quoting
-        $Article{Body} = $LayoutObject->Ascii2Html(
-            NewLine => $ConfigObject->Get('DefaultViewNewLine'),
-            Text    => $Article{Body},
-            VMax    => $ConfigObject->Get('DefaultViewLines') || 5000,
-        );
-
         if ($Article{AttachmentIDOfHTMLBody}) {
+
+            # html quoting
+            $Article{Body} = $LayoutObject->Ascii2Html(
+                NewLine => $ConfigObject->Get('DefaultViewNewLine'),
+                Text    => $Article{Body},
+                VMax    => $ConfigObject->Get('DefaultViewLines') || 5000,
+            );
+
             my %AttachmentHTML = $TicketObject->ArticleAttachment(
                 ArticleID => $Article{ArticleID},
                 FileID    => $Article{AttachmentIDOfHTMLBody},
@@ -138,7 +143,6 @@ sub DataGet {
             );
 
             my %Attachments = %AttachmentIndex;
-            my %AttachmentAlreadyUsed;
             $Body =~ s{
                 (=|"|')cid:(.*?)("|'|>|\/>|\s)
             }
@@ -193,26 +197,37 @@ sub DataGet {
             # strip head, body and meta elements
             $Article{Body} = $Body;
         }
+        else {
+            # convert plain to html
+            $Article{Body} = $Kernel::OM->Get('HTMLUtils')->ToHTML(
+                String => $Article{Body}
+            );
+        }
     }
     else {
         %Article = %{$Param{Data}};
     }
 
     my $DynamicFields;
-    if (
-        $Expands{DynamicField}
-        && !IsHashRefWithData($Article{Expands}->{DynamicField})
-    ) {
-        $Self->_GetDynamicFields(
-            ArticleID => $Article{ArticleID} || $Param{ArticleID},
-            UserID    => $Param{UserID},
-            Data      => \%Article,
-            IDKey     => 'ArticleID',
-            Type      => 'Article'
-        );
-        $DynamicFields = $Article{Expands}->{DynamicFied};
-    }
+    if ( %Expands ) {
+        for my $Expand ( keys %Expands ) {
+            my $Function = $ExpendFunc{$Expand};
 
+            next if !$Function;
+
+            $Self->$Function(
+                Expands  => $Expands{$Expand} || 0,
+                ObjectID => $Article{ArticleID} || $Param{ArticleID},
+                UserID   => $Param{UserID},
+                Type     => 'Article',
+                Data     => \%Article,
+            );
+
+            if ( $Expand eq 'DynamicField' ) {
+                $DynamicFields = $Article{Expands}->{DynamicFied};
+            }
+        }
+    }
 
     if ( %Filters ) {
         my $Match = $Self->_Filter(

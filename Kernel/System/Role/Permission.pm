@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -13,13 +13,14 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'User',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    User
+    Valid
 );
 
 # just for convenience
@@ -418,19 +419,23 @@ sub PermissionAdd {
     # check needed stuff
     for my $Needed (qw(RoleID TypeID Target UserID)) {
         if ( !$Param{$Needed} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Needed!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $Needed!"
+                );
+            }
             return;
         }
     }
 
     if ( !defined $Param{Value} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Need Value!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Need Value!"
+            );
+        }
         return;
     }
 
@@ -443,18 +448,22 @@ sub PermissionAdd {
         Target => $Param{Target}
     );
     if ( $ID ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "A permission with the same type and target already exists for this role.",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "A permission with the same type and target already exists for this role.",
+            );
+        }
         return;
     }
 
     if ( !$Self->ValidatePermission(%Param) ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "The permission target is invalid.",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "The permission target is invalid.",
+            );
+        }
         return;
     }
 
@@ -469,6 +478,15 @@ sub PermissionAdd {
         Bind => [
             \$Param{RoleID}, \$Param{TypeID}, \$Param{Target}, \$Param{Value},
             \$Param{IsRequired}, \$Param{Comment}, \$Param{UserID}, \$Param{UserID}
+        ],
+    );
+
+    # update change_time and change_by on role object
+    return if !$Kernel::OM->Get('DB')->Do(
+        SQL => 'UPDATE roles SET '
+            . 'change_time = current_timestamp, change_by = ? WHERE id = ?',
+        Bind => [            
+            \$Param{UserID}, \$Param{RoleID}
         ],
     );
 
@@ -489,7 +507,7 @@ sub PermissionAdd {
     $Kernel::OM->Get('Cache')->CleanUp();
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Role.Permission',
         ObjectID  => $Param{RoleID}.'::'.$ID,
@@ -589,11 +607,20 @@ sub PermissionUpdate {
         ],
     );
 
+    # update change_time and change_by on role object
+    return if !$Kernel::OM->Get('DB')->Do(
+        SQL => 'UPDATE roles SET '
+            . 'change_time = current_timestamp, change_by = ? WHERE id = ?',
+        Bind => [            
+            \$Param{UserID}, \$Data{RoleID}
+        ],
+    );    
+
     # delete whole cache
     $Kernel::OM->Get('Cache')->CleanUp();
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Role.Permission',
         ObjectID  => $Data{RoleID}.'::'.$Param{ID},
@@ -607,9 +634,11 @@ sub PermissionUpdate {
 returns array of all PermissionIDs for a role
 
     my @PermissionIDs = $RoleObject->PermissionList(
-        RoleID => 1,                                    # optional
-        Types  => ['Resource', 'Base::Ticket'],         # optional
-        Target => '...'                                 # optional
+        RoleID       => 1,                                    # optional, ignored if RoleIDs is given
+        RoleIDs      => [1,2,3],                              # optional
+        Types        => ['Resource', 'Base::Ticket'],         # optional
+        Target       => '...'                                 # optional
+        UsageContext => 'Customer'                            # optional, or 'Agent'
     );
 
 the result looks like
@@ -625,8 +654,10 @@ the result looks like
 sub PermissionList {
     my ( $Self, %Param ) = @_;
 
+    my @RoleIDs = $Param{RoleIDs} ? $Param{RoleIDs} : $Param{RoleID} ? ( $Param{RoleID} ) : ();
+
     # create cache key
-    my $CacheKey = 'PermissionList::' . ($Param{RoleID}||'') . '::'.join(',', @{$Param{Types}||[]}) . '::' . ($Param{Target}||'');
+    my $CacheKey = 'PermissionList::' . join(',', @RoleIDs) . '::' . join(',', @{$Param{Types}||[]}) . '::' . ($Param{Target}||'') . '::' . ($Param{UsageContext}||'');
 
     # read cache
     my $Cache = $Kernel::OM->Get('Cache')->Get(
@@ -635,13 +666,18 @@ sub PermissionList {
     );
     return @{$Cache} if $Cache;
 
-    my $SQL = 'SELECT rp.id FROM role_permission rp, permission_type pt WHERE pt.id = rp.type_id';
+    my $SQL = 'SELECT rp.id FROM role_permission rp, permission_type pt, roles r WHERE pt.id = rp.type_id AND r.id = rp.role_id';
 
     my @Bind;
 
-    if ( $Param{RoleID} ) {
-        $SQL .= ' AND rp.role_id = ?';
-        push @Bind, \$Param{RoleID};
+    if( $Param{UsageContext} ) {
+        $SQL .= ' AND r.usage_context IN (?, 3)';
+        push @Bind, \Kernel::System::Role->USAGE_CONTEXT->{uc($Param{UsageContext})};
+    }
+
+    if ( @RoleIDs ) {
+        $SQL .= ' AND rp.role_id IN (' . join( ', ', map {'?'} @RoleIDs ) . ')';
+        push @Bind, map { \$_ } @RoleIDs;
     }
 
     if ( IsArrayRefWithData($Param{Types}) ) {
@@ -770,7 +806,7 @@ sub PermissionDelete {
     $Kernel::OM->Get('Cache')->CleanUp();
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'Role.Permission',
         ObjectID  => $Data{RoleID}.'::'.$Param{ID},

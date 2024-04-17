@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -11,11 +11,12 @@ package Kernel::System::LinkObject::ConfigItem;
 use strict;
 use warnings;
 
-our @ObjectDependencies = (
-    'Config',
-    'GeneralCatalog',
-    'ITSMConfigItem',
-    'Log',
+our @ObjectDependencies = qw(
+    Config
+    GeneralCatalog
+    ITSMConfigItem
+    Log
+    ObjectSearch
 );
 
 =head1 NAME
@@ -103,7 +104,6 @@ sub LinkListWithData {
                 # add version data
                 $Param{LinkList}->{$LinkType}->{$Direction}->{$ConfigItemID} = $VersionData;
 
-                # KIX4OTRS-capeIT
                 # check for access rights
                 my $Access = $Kernel::OM->Get('ITSMConfigItem')->Permission(
                     Scope   => 'Class',
@@ -113,52 +113,11 @@ sub LinkListWithData {
                 ) || 0;
 
                 $Param{LinkList}->{$LinkType}->{$Direction}->{$ConfigItemID}->{Access} = $Access;
-                # EO KIX4OTRS-capeIT
             }
         }
     }
 
     return 1;
-}
-
-=item ObjectPermission()
-
-checks read permission for a given object and UserID.
-
-    $Permission = $LinkObject->ObjectPermission(
-        Object  => 'ConfigItem',
-        Key     => 123,
-        UserID  => 1,
-    );
-
-=cut
-
-sub ObjectPermission {
-    my ( $Self, %Param ) = @_;
-
-    # check needed stuff
-    for my $Argument (qw(Object Key UserID)) {
-        if ( !$Param{$Argument} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Argument!",
-            );
-            return;
-        }
-    }
-
-    # get config of configitem zoom frontend module
-    $Self->{Config} = $Kernel::OM->Get('Config')->Get('ITSMConfigItem::Frontend::AgentITSMConfigItemZoom');
-
-    # check for access rights
-    my $Access = $Kernel::OM->Get('ITSMConfigItem')->Permission(
-        Scope  => 'Item',
-        ItemID => $Param{Key},
-        UserID => $Param{UserID},
-        Type   => $Self->{Config}->{Permission},
-    );
-
-    return $Access;
 }
 
 =item ObjectDescriptionGet()
@@ -259,12 +218,7 @@ sub ObjectSearch {
     $Param{SearchParams} ||= {};
 
     # set focus
-    my %Search;
-    for my $Element (qw(Number Name)) {
-        if ( $Param{SearchParams}->{$Element} ) {
-            $Search{$Element} = '*' . $Param{SearchParams}->{$Element} . '*';
-        }
-    }
+    my @SearchParams;
 
     if ( !$Param{SubObject} ) {
 
@@ -272,7 +226,7 @@ sub ObjectSearch {
         my $DefaultSubobject = $Kernel::OM->Get('Config')->Get('LinkObject::DefaultSubObject') || {};
 
         # extract default class name
-        my $DefaultClass = $DefaultSubobject->{ITSMConfigItem} || '';
+        my $DefaultClass = $DefaultSubobject->{ITSMConfigItem} || q{};
 
         # get class list
         my $ClassList = $Kernel::OM->Get('GeneralCatalog')->ItemList(
@@ -284,13 +238,13 @@ sub ObjectSearch {
 
         # lookup the class id
         my %ClassListReverse = reverse %{$ClassList};
-        $Param{SubObject} = $ClassListReverse{$DefaultClass} || '';
+        $Param{SubObject} = $ClassListReverse{$DefaultClass} || q{};
     }
 
     return if !$Param{SubObject};
 
-    # KIX4OTRS-capeIT
     my @ClassIDArray;
+    my %SearchWhat;
     if ( $Param{SubObject} ne 'All' ) {
 
         my $XMLFormData   = [];
@@ -300,16 +254,10 @@ sub ObjectSearch {
 
         $Self->_XMLSearchFormGet(
             XMLDefinition => $XMLDefinition->{DefinitionRef},
-            XMLFormData   => $XMLFormData,
+            XMLFormData   => \@SearchParams,
+            SearchWhat    => \%SearchWhat,
             %Param,
         );
-
-        if ( @{$XMLFormData} ) {
-            $Search{What} = $XMLFormData;
-            $Param{What}  = $XMLFormData;
-
-            #$Param{SearchParams} = ();
-        }
 
         @ClassIDArray = $Param{SubObject};
     }
@@ -322,27 +270,67 @@ sub ObjectSearch {
         @ClassIDArray = keys %{ $ClassList };
     }
 
-    # EO KIX4OTRS-capeIT
+    for my $Key ( sort keys %{$Param{SearchParams}} ) {
+        next if $SearchWhat{$Key};
+
+        my $Value    = $Param{SearchParams}->{$Key};
+        my $Operator = 'EQ';
+        my $Type     = 'STRING';
+
+        if ( $Key =~ /^(?:Name|Number)$/sm ) {
+            next if ( !$Param{SearchParams}->{$Key} );
+            $Operator = 'CONTAINS';
+        }
+        elsif( ref $Value eq 'ARRAY' ) {
+            $Operator = 'IN';
+        }
+
+        if ( $Key =~ /ID(?:s|)$/sm ) {
+            $Type = 'NUMERIC';
+        }
+
+        push(
+            @SearchParams,
+            {
+                Field    => $Key,
+                Operator => $Operator,
+                Type     => $Type,
+                Value    => $Value
+            }
+        );
+    }
+
+    push (
+        @SearchParams,
+        {
+            Field    => 'ClassID',
+            Operator => 'IN',
+            Type     => 'NUMERIC',
+            Value    => \@ClassIDArray
+        }
+    );
 
     # search the config items
-    my $ConfigItemIDs = $Kernel::OM->Get('ITSMConfigItem')->ConfigItemSearchExtended(
-        %{ $Param{SearchParams} },
-        %Search,
-        # KIX4OTRS-capeIT
-        # ClassIDs              => [ $Param{SubObject} ],
-        ClassIDs              => \@ClassIDArray,
-        # EO KIX4OTRS-capeIT
-        PreviousVersionSearch => 0,
-        UsingWildcards        => 1,
-        OrderBy               => ['Number'],
-        OrderByDirection      => ['Up'],
-        Limit                 => 50,
-        UserID                => $Param{UserID},
+    my @ConfigItemIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+        ObjectType => 'ConfigItem',
+        Result     => 'ARRAY',
+        Search     => {
+            AND => \@SearchParams
+        },
+        Sort    => [
+            {
+                Field     => 'Number',
+                Direction => 'ASCENDING'
+            }
+        ],
+        UsingWildcards => 1,
+        Limit          => 50,
+        UserID         => $Param{UserID},
     );
 
     my %SearchList;
     CONFIGITEMID:
-    for my $ConfigItemID ( @{$ConfigItemIDs} ) {
+    for my $ConfigItemID ( @ConfigItemIDs ) {
 
         # get last version data
         my $VersionData = $Kernel::OM->Get('ITSMConfigItem')->VersionGet(
@@ -448,6 +436,7 @@ sub LinkAddPost {
     # recalculate the current incident state of this CI
     $Kernel::OM->Get('ITSMConfigItem')->RecalculateCurrentIncidentState(
         ConfigItemID => $Param{Key},
+        Event        => 'LinkAdd',
     );
 
     # trigger LinkAdd event
@@ -455,7 +444,7 @@ sub LinkAddPost {
         Event => 'LinkAdd',
         Data  => {
             ConfigItemID => $Param{Key},
-            Comment      => $ID . '%%' . $Object,
+            Comment      => $ID . q{%%} . $Object,
         },
         UserID => $Param{UserID},
     );
@@ -549,6 +538,7 @@ sub LinkDeletePost {
     # recalculate the current incident state of this CI
     $Kernel::OM->Get('ITSMConfigItem')->RecalculateCurrentIncidentState(
         ConfigItemID => $Param{Key},
+        Event        => 'LinkDelete',
     );
 
     # trigger LinkDelete event
@@ -556,7 +546,7 @@ sub LinkDeletePost {
         Event => 'LinkDelete',
         Data  => {
             ConfigItemID => $Param{Key},
-            Comment      => $ID . '%%' . $Object,
+            Comment      => $ID . q{%%} . $Object,
         },
         UserID => $Param{UserID},
     );
@@ -564,7 +554,6 @@ sub LinkDeletePost {
     return 1;
 }
 
-# KIX4OTRS-capeIT
 sub _XMLSearchFormGet {
     my ( $Self, %Param ) = @_;
 
@@ -582,12 +571,16 @@ sub _XMLSearchFormGet {
         # create inputkey
         my $InputKey = $Item->{Key};
         if ( $Param{Prefix} ) {
-            $InputKey = $Param{Prefix} . '::' . $InputKey;
+            $InputKey = $Param{Prefix} . q{::} . $InputKey;
         }
 
         # get search form data
         my @ValueArray = qw{};
         my $Values     = $Param{SearchParams}->{$InputKey};
+
+        if ( defined $Values ) {
+            $Param{SearchWhat}->{$InputKey} = 1;
+        }
 
         if ( ref($Values) eq 'ARRAY' ) {
             @ValueArray = @{$Values};
@@ -607,15 +600,18 @@ sub _XMLSearchFormGet {
         if (@SearchValues) {
 
             # create search key
-            my $SearchKey = $InputKey;
-            $SearchKey =~ s{ :: }{\'\}[%]\{\'}xmsg;
+            my $SearchKey = (!$Param{Prefix} ? 'CurrentVersion.Data.' : q{} ) . $InputKey;
+            $SearchKey =~ s/::/./gsm;
 
-            # create search hash
-            my $SearchHash = {
-                '[1]{\'Version\'}[1]{\'' . $SearchKey . '\'}[%]{\'Content\'}' => \@SearchValues,
-            };
-
-            push @{ $Param{XMLFormData} }, $SearchHash;
+            push (
+                @{ $Param{XMLFormData} },
+                {
+                    Field    => $SearchKey,
+                    Operator => 'IN',
+                    Type     => 'STRING',
+                    Value    => \@SearchValues
+                }
+            );
         }
 
         next ITEM if !$Item->{Sub};
@@ -633,13 +629,7 @@ sub _XMLSearchFormGet {
     return 1;
 }
 
-#EO KIX4OTRS-capeIT
-
 1;
-
-
-
-
 
 =back
 

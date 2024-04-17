@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2019–2021 Efflux GmbH, https://efflux.de/
 # Copyright (C) 2019-2021 Rother OSS GmbH, https://otobo.de/
@@ -20,13 +20,14 @@ use warnings;
 use URI;
 use URI::QueryParam;
 
-our @ObjectDependencies = (
-    'Cache',
-    'DB',
-    'JSON',
-    'Log',
-    'Valid',
-    'WebUserAgent'
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Cache
+    DB
+    JSON
+    Log
+    Valid
+    WebUserAgent
 );
 
 =head1 NAME
@@ -130,7 +131,7 @@ sub ProfileAdd {
     return if !$ID;
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'OAuth2Profile',
         ObjectID  => $ID
@@ -306,7 +307,7 @@ sub ProfileUpdate {
         );
 
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'DELETE',
             Namespace => 'OAuth2ProfileAuth',
             ObjectID  => $Param{ID},
@@ -330,7 +331,7 @@ sub ProfileUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'OAuth2Profile',
         ObjectID  => $Param{ID},
@@ -512,7 +513,7 @@ sub ProfileDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'OAuth2Profile',
         ObjectID  => $Param{ID},
@@ -625,10 +626,9 @@ sub ProcessAuthCode {
         return;
     }
 
-    # delete state token
+    # delete token of profile
     $Self->_TokenDelete(
         ProfileID => $ProfileID,
-        TokenType => 'state',
     );
 
     # request token with authorization code
@@ -716,10 +716,12 @@ sub HasToken {
         Key  => "AccessToken::$Param{ProfileID}",
     );
     return 1 if $Token;
-    $Kernel::OM->Get('Log')->Log(
-        Priority => 'notice',
-        Message  => "No access token found for profile ($Param{ProfileID})!"
-    );
+    if ( !$Param{Silent} ) {
+        $Kernel::OM->Get('Log')->Log(
+            Priority => 'notice',
+            Message  => "No access token found for profile ($Param{ProfileID})!"
+        );
+    }
 
     my %TokenList = $Self->_TokenList(
         ProfileID => $Param{ProfileID},
@@ -748,7 +750,7 @@ Returns:
 sub RequestAccessToken {
     my ( $Self, %Param ) = @_;
 
-### Code licensed under the GPL-3.0, Copyright (C) 2019-2023 Rother OSS GmbH, https://otobo.de/ ###
+### Code licensed under the GPL-3.0, Copyright (C) 2019-2024 Rother OSS GmbH, https://otobo.de/ ###
     # check needed stuff
     for (qw(ProfileID GrantType)) {
         if ( !$Param{$_} ) {
@@ -765,6 +767,12 @@ sub RequestAccessToken {
     );
     return if !%Profile;
 
+    # delete access token
+    $Self->_TokenDelete(
+        ProfileID => $Param{ProfileID},
+        TokenType => 'access',
+    );
+
     # init data
     my %Data = (
         client_id     => $Profile{ClientID},
@@ -774,7 +782,7 @@ sub RequestAccessToken {
         grant_type    => $Param{GrantType},
     );
 
-    # Add optional parameters.
+    # add optional parameters
     if (
         $Param{GrantType} eq 'authorization_code'
         && $Param{Code}
@@ -849,7 +857,7 @@ sub RequestAccessToken {
             Token     => $ResponseData->{refresh_token},
         );
     }
-### EO Code licensed under the GPL-3.0, Copyright (C) 2019-2023 Rother OSS GmbH, https://otobo.de/ ###
+### EO Code licensed under the GPL-3.0, Copyright (C) 2019-2024 Rother OSS GmbH, https://otobo.de/ ###
 
     # Cache the access token until it expires - add a buffer (90 seconds) for latency reasons
     my $TTL = $ResponseData->{expires_in} ? ($ResponseData->{expires_in} - 90) : 0;
@@ -870,7 +878,7 @@ sub RequestAccessToken {
         && $Param{Code}
     ) {
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'CREATE',
             Namespace => 'OAuth2ProfileAuth',
             ObjectID  => $Param{ProfileID},
@@ -878,7 +886,7 @@ sub RequestAccessToken {
     }
     else {
         # push client callback event
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'UPDATE',
             Namespace => 'OAuth2ProfileAuth',
             ObjectID  => $Param{ProfileID},
@@ -1029,6 +1037,17 @@ sub _TokenDelete {
         SQL   => $SQL,
         Bind  => \@Bind,
     );
+
+    if (
+        !$Param{TokenType}
+        || $Param{TokenType} eq 'access'
+    ) {
+        # delete access token from cache
+        $Kernel::OM->Get('Cache')->Delete(
+            Type => $Self->{CacheType},
+            Key  => "AccessToken::$Param{ProfileID}",
+        );
+    }
 
     return 1;
 }

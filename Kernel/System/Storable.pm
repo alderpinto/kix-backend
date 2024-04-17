@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -67,18 +67,22 @@ sub Serialize {
 
     # check for needed data
     if ( !defined $Param{Data} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Need Data!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Need Data!',
+            );
+        }
         return;
     }
 
     if ( !ref $Param{Data} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Data needs to be given as a reference!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Data needs to be given as a reference!',
+            );
+        }
         return;
     }
 
@@ -91,10 +95,12 @@ sub Serialize {
 
     # error handling
     if ($@) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Error serializing data: $@",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Error serializing data: $@",
+            );
+        }
         return;
     }
 
@@ -125,10 +131,12 @@ sub Deserialize {
 
     # error handling
     if ($@) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Error deserializing data: $@",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Error deserializing data: $@",
+            );
+        }
         return;
     }
 
@@ -150,18 +158,22 @@ sub Clone {
 
     # check for needed data
     if ( !defined $Param{Data} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Need Data!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Need Data!',
+            );
+        }
         return;
     }
 
     if ( !ref $Param{Data} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Data needs to be a reference!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Data needs to be a reference!',
+            );
+        }
         return;
     }
 
@@ -172,10 +184,12 @@ sub Clone {
 
     # error handling
     if ($@) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Error cloning data: $@",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Error cloning data: $@",
+            );
+        }
         return;
     }
 

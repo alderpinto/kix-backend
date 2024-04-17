@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -17,12 +17,10 @@ my $ConfigObject       = $Kernel::OM->Get('Config');
 my $ContactObject = $Kernel::OM->Get('Contact');
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 my $Contact = 'customer' . $Helper->GetRandomID();
 
@@ -83,18 +81,31 @@ my @Tests = (
 );
 
 for my $Test (@Tests) {
-    my %Result = $ContactObject->ContactSearch(
-        Email => $Test->{Email},
+    my $Result = $Kernel::OM->Get('ObjectSearch')->Search(
+        Search => {
+            AND => [
+                {
+                    Field    => 'Emails',
+                    Operator => 'EQ',
+                    Value    => $Test->{Email}
+                }
+            ]
+        },
+        ObjectType => 'Contact',
+        Result     => 'COUNT',
+        UserID     => 1,
+        UserType   => 'Agent'
     );
 
     $Self->Is(
-        scalar keys %Result,
+        $Result,
         $Test->{ResultCount},
         $Test->{Name},
     );
 }
 
-# cleanup is done by RestoreDatabase
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

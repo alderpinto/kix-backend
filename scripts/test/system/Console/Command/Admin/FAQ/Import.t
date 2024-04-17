@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -15,14 +15,18 @@ use utf8;
 use vars (qw($Self));
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
+# begin transaction on database
+$Helper->BeginWork();
+
 my $CommandObject = $Kernel::OM->Get('Console::Command::Admin::FAQ::Import');
+
+# silence console output
+local *STDOUT;
+local *STDERR;
+open STDOUT, '>>', "/dev/null";
+open STDERR, '>>', "/dev/null";
 
 # test command without source argument
 my $ExitCode = $CommandObject->Execute();
@@ -43,6 +47,9 @@ $Self->Is(
     0,
     "Option - with source argument",
 );
+
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

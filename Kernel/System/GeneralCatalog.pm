@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -15,13 +15,14 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'CheckItem',
-    'DB',
-    'Log',
-    'Main',
+our @ObjectDependencies = qw(
+    Config
+    Cache
+    CheckItem
+    ClientRegistration
+    DB
+    Log
+    Main
 );
 
 =head1 NAME
@@ -121,6 +122,7 @@ sub ClassRename {
     # check needed stuff
     for my $Argument (qw(ClassOld ClassNew)) {
         if ( !$Param{$Argument} ) {
+            return if $Param{Silent};
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -155,6 +157,8 @@ sub ClassRename {
     }
 
     if ($AlreadyExists) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "Can't rename class $Param{ClassOld}! New classname already exists."
@@ -177,7 +181,7 @@ sub ClassRename {
     return if !$Result;
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'GeneralCatalog.Class',
         ObjectID  => $Param{ClassOld}.'::'.$Param{ClassNew},
@@ -403,10 +407,12 @@ sub ItemGet {
 
     # check item
     if ( !$ItemData{ItemID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Item not found in database!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Item not found in database!',
+            );
+        }
         return;
     }
 
@@ -457,6 +463,8 @@ sub ItemAdd {
     # check needed stuff
     for my $Argument (qw(Class ValidID UserID)) {
         if ( !$Param{$Argument} ) {
+            return if $Param{Silent};
+
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -466,7 +474,12 @@ sub ItemAdd {
     }
 
     # name must be not empty, but number zero (0) is allowed
-    if ( $Param{Name} eq '' ) {
+    if (
+        !defined $Param{Name}
+        || $Param{Name} eq q{}
+    ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "Need Name!",
@@ -476,7 +489,7 @@ sub ItemAdd {
 
     # set default values
     for my $Argument (qw(Comment)) {
-        $Param{$Argument} ||= '';
+        $Param{$Argument} ||= q{};
     }
 
     # cleanup given params
@@ -512,6 +525,8 @@ sub ItemAdd {
 
     # abort insert of new item, if item name already exists
     if ($NoAdd) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message =>
@@ -554,7 +569,7 @@ sub ItemAdd {
     }
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'GeneralCatalog',
         ObjectID  => $ItemID,
@@ -583,6 +598,8 @@ sub ItemUpdate {
     # check needed stuff
     for my $Argument (qw(ItemID ValidID UserID)) {
         if ( !$Param{$Argument} ) {
+            return if $Param{Silent};
+
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -592,7 +609,12 @@ sub ItemUpdate {
     }
 
     # name must be not empty, but number zero (0) is allowed
-    if ( $Param{Name} eq '' ) {
+    if (
+        !defined $Param{Name}
+        || $Param{Name} eq q{}
+    ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "Need Name!",
@@ -602,7 +624,7 @@ sub ItemUpdate {
 
     # set default values
     for my $Argument (qw(Comment)) {
-        $Param{$Argument} ||= '';
+        $Param{$Argument} ||= q{};
     }
 
     # cleanup given params
@@ -636,6 +658,8 @@ sub ItemUpdate {
     }
 
     if ( !$Class ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "Can't update item! General catalog item not found in this class.",
@@ -659,6 +683,8 @@ sub ItemUpdate {
     }
 
     if ( !$Update ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message =>
@@ -687,7 +713,7 @@ sub ItemUpdate {
     return if !$Result;
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'GeneralCatalog',
         ObjectID  => $Param{ItemID},
@@ -713,6 +739,8 @@ sub ItemLookup {
 
     # check needed stuff
     if ( (!$Param{Class} || !$Param{Name}) && !$Param{ItemID} ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => 'Got no Class and Name or ItemID!',
@@ -741,6 +769,8 @@ sub ItemLookup {
 
     # check if data exists
     if ( !defined $ReturnData ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "No item for $What found!",
@@ -838,7 +868,7 @@ sub GeneralCatalogItemDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'GeneralCatalog',
         ObjectID  => $Param{ItemID},

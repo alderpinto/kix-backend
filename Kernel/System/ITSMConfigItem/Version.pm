@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -378,10 +378,12 @@ sub VersionGet {
 
     # check needed stuff
     if ( !$Param{VersionID} && !$Param{ConfigItemID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Need VersionID or ConfigItemID!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'Need VersionID or ConfigItemID!',
+            );
+        }
         return;
     }
 
@@ -446,10 +448,12 @@ sub VersionGet {
 
     # check version
     if ( !$Version{VersionID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'No such config item version!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'No such config item version!',
+            );
+        }
         return;
     }
 
@@ -477,10 +481,12 @@ sub VersionGet {
 
     # check config item data
     if ( !$ConfigItem || ref $ConfigItem ne 'HASH' ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Can't get config item $Version{ConfigItemID}!",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Can't get config item $Version{ConfigItemID}!",
+            );
+        }
         return;
     }
 
@@ -735,10 +741,12 @@ sub VersionAdd {
     # check needed stuff
     for my $Attribute (qw(ConfigItemID Name DefinitionID DeplStateID InciStateID UserID)) {
         if ( !$Param{$Attribute} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $Attribute!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $Attribute!",
+                );
+            }
             return;
         }
     }
@@ -753,11 +761,12 @@ sub VersionAdd {
 
     # check the deployment state id
     if ( !$DeplStateList->{ $Param{DeplStateID} } ) {
-
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'No valid deployment state id given!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'No valid deployment state id given!',
+            );
+        }
         return;
     }
 
@@ -771,11 +780,12 @@ sub VersionAdd {
 
     # check the incident state id
     if ( !$InciStateList->{ $Param{InciStateID} } ) {
-
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'No valid incident state id given!',
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => 'No valid incident state id given!',
+            );
+        }
         return;
     }
 
@@ -817,15 +827,16 @@ sub VersionAdd {
 
         # stop processing if the name is not unique
         if ( IsArrayRefWithData($NameDuplicates) ) {
+            if ( !$Param{Silent} ) {
+                # build a string of all duplicate IDs
+                my $Duplicates = join ', ', @{$NameDuplicates};
 
-            # build a string of all duplicate IDs
-            my $Duplicates = join ', ', @{$NameDuplicates};
-
-            # write an error log message containing all the duplicate IDs
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "The name $Param{Name} is already in use (ConfigItemIDs: $Duplicates)!",
-            );
+                # write an error log message containing all the duplicate IDs
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "The name $Param{Name} is already in use (ConfigItemIDs: $Duplicates)!",
+                );
+            }
             return;
         }
     }
@@ -880,7 +891,7 @@ sub VersionAdd {
         }
     }
 
-    # trigger Pre-ValudeUpdate event
+    # trigger Pre-ValueUpdate event
     if ( $Events->{ValueUpdate} ) {
         $Result = $Self->_PreEventHandlerForChangedXMLValues(
             ConfigItemID => $Param{ConfigItemID},
@@ -1104,6 +1115,9 @@ sub VersionAdd {
     $Kernel::OM->Get('Cache')->CleanUp(
         Type => $Self->{CacheType},
     );
+    $Kernel::OM->Get('Cache')->CleanUp(
+        Type => $Self->{OSCacheType},
+    );
 
     if ($AddVersion) {
         # trigger VersionCreate event
@@ -1152,6 +1166,12 @@ sub VersionAdd {
 
     # trigger incident state update event
     if ( $Events->{IncidentStateUpdate} ) {
+        # recalculate the current incident state of all linked config items
+        $Self->RecalculateCurrentIncidentState(
+            ConfigItemID => $Param{ConfigItemID},
+            Event        => 'IncidentStateUpdate'
+        );
+
         $Self->EventHandler(
             Event => 'IncidentStateUpdate',
             Data  => {
@@ -1174,20 +1194,15 @@ sub VersionAdd {
         );
     }
 
-    # recalculate the current incident state of all linked config items
-    $Self->RecalculateCurrentIncidentState(
-        ConfigItemID => $Param{ConfigItemID}
-    );
-
     # push client callback event
     if ($AddVersion) {
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event     => 'CREATE',
             Namespace => 'CMDB.ConfigItem.Version',
             ObjectID  => $Param{ConfigItemID}.'::'.$VersionID,
         );
     } else {
-        $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+        $Kernel::OM->Get('ClientNotification')->NotifyClients(
             Event      => 'UPDATE',
             Namespace  => 'CMDB.ConfigItem',
             ObjectID   => $Param{ConfigItemID},
@@ -1324,7 +1339,7 @@ sub VersionDelete {
             );
 
             # push client callback event
-            $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+            $Kernel::OM->Get('ClientNotification')->NotifyClients(
                 Event     => 'DELETE',
                 Namespace => 'CMDB.ConfigItem.Version',
                 ObjectID  => $ConfigItemID.'::'.$VersionID,
@@ -1335,6 +1350,9 @@ sub VersionDelete {
     # clear cache
     $Kernel::OM->Get('Cache')->CleanUp(
         Type => $Self->{CacheType},
+    );
+    $Kernel::OM->Get('Cache')->CleanUp(
+        Type => $Self->{OSCacheType},
     );
 
     return $Success;

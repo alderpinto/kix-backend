@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -15,11 +15,12 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Cache',
-    'DB',
-    'Log',
-    'Valid'
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Cache
+    DB
+    Log
+    Valid
 );
 
 =head1 NAME
@@ -60,6 +61,8 @@ sub CategoryAdd {
     # check needed stuff
     for my $Argument (qw(Name UserID)) {
         if ( !$Param{$Argument} ) {
+            return if $Param{Silent};
+
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -71,6 +74,8 @@ sub CategoryAdd {
 
     # check needed stuff
     if ( !defined $Param{ParentID} ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "Need ParentID!",
@@ -81,6 +86,8 @@ sub CategoryAdd {
 
     # check that ParentID is not an empty string but number 0 is allowed
     if ( $Param{ParentID} eq '' ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "ParentID cannot be empty!",
@@ -132,7 +139,7 @@ sub CategoryAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'FAQ.Category',
         ObjectID  => $CategoryID,
@@ -267,7 +274,7 @@ sub CategoryDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'FAQ.Category',
         ObjectID  => $Param{CategoryID},
@@ -965,6 +972,8 @@ sub CategoryUpdate {
     # check needed stuff
     for my $Argument (qw(Name UserID)) {
         if ( !$Param{$Argument} ) {
+            return if $Param{Silent};
+
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -977,6 +986,8 @@ sub CategoryUpdate {
     # check needed stuff
     for my $Argument (qw(CategoryID ParentID)) {
         if ( !defined $Param{$Argument} ) {
+            return if $Param{Silent};
+
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
                 Message  => "Need $Argument!",
@@ -988,6 +999,8 @@ sub CategoryUpdate {
 
     # check that ParentID is not an empty string but number 0 is allowed
     if ( $Param{ParentID} eq '' ) {
+        return if $Param{Silent};
+
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => "ParentID cannot be empty!",
@@ -1026,7 +1039,7 @@ sub CategoryUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'FAQ.Category',
         ObjectID  => $Param{CategoryID},

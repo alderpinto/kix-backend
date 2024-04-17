@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -30,8 +30,9 @@ use Kernel::System::VariableCheck qw(:all);
 
 our @EXPORT = qw(Translatable);
 
-our @ObjectDependencies = (
-    'SysConfig',
+our @ObjectDependencies = qw(
+    SysConfig
+    Cache
 );
 
 =head1 NAME
@@ -60,6 +61,8 @@ sub new {
 
     # init the basic configuration to "find" ourself
     $Self->{Config}->{Home} = $ENV{KIX_HOME} || dirname($Bin) || '/opt/kix';
+    $Self->{ConfigDir} = $Self->{Config}->{Home}.'/config';
+
     if ($ENV{KIX_HOME}) {
         use lib $ENV{KIX_HOME};
         use lib $ENV{KIX_HOME} . '/plugins';
@@ -69,16 +72,17 @@ sub new {
     $Self->{NoCache}         = $Param{NoCache};
 
     # load settings from Config.pm
-    $Self->{Config} = $Self->LoadLocalConfig($Self->{Config}->{Home}.'/config');
+    $Self->{Config} = $Self->LoadLocalConfig();
 
     return $Self;
 }
 
 # load values from local config files (stage 1)
-sub LoadLocalConfig {
+sub GetLocalConfig {
     my ( $Self, $ConfigDir ) = @_;
-    my %Config = %{$Self->{Config}};
     my %FileConfig;
+
+    $ConfigDir //= $Self->{ConfigDir};
 
     if ( opendir(my $DIR, $ConfigDir) ) {
         # filter files and ignore file with .dist extension
@@ -111,14 +115,22 @@ sub LoadLocalConfig {
         die;
     }
 
+    return \%FileConfig;
+}
+
+sub LoadLocalConfig {
+    my ( $Self, $ConfigDir ) = @_;
+
+    my $LocalConfig = $Self->GetLocalConfig($ConfigDir);
+
     # merge with config
-    %Config = ( %Config, %FileConfig );
+    my %Config = ( %{$Self->{Config}}, %{$LocalConfig||{}} );
 
     return \%Config;
 }
 
 # load values from SysConfig (stage 2)
-sub LoadSysConfig {
+sub GetSysConfig {
     my ( $Self ) = @_;
 
     # return if the ObjectManager is not yet initialized
@@ -135,8 +147,7 @@ sub LoadSysConfig {
         );
         if ( IsHashRefWithData($CacheResult) ) {
             $Self->{SysConfigLoaded} = 1;
-            $Self->{Config} = $CacheResult;
-            return 1;
+            return $CacheResult;
         }
     }
 
@@ -156,7 +167,7 @@ sub LoadSysConfig {
             $PreparedOptions{$Option} = $Options{$Option};
         }
     }
-    $Self->{Config} = \%PreparedOptions;
+    my $Result = \%PreparedOptions;
 
     my $Home = $Self->Get('Home');
 
@@ -167,22 +178,22 @@ sub LoadSysConfig {
             # filtering of comment lines
             if ( $Line !~ /^#/ ) {
                 if ( $Line =~ /^PRODUCT\s{0,2}=\s{0,2}(.*)\s{0,2}$/i ) {
-                    $Self->{Config}->{Product} = $1;
+                    $Result->{Product} = $1;
                 }
                 elsif ( $Line =~ /^VERSION\s{0,2}=\s{0,2}(.*)\s{0,2}$/i ) {
-                    $Self->{Config}->{Version} = $1;
+                    $Result->{Version} = $1;
                 }
                 elsif ( $Line =~ /^BUILDDATE\s{0,2}=\s{0,2}(.*)\s{0,2}$/i ) {
-                    $Self->{Config}->{BuildDate} = $1;
+                    $Result->{BuildDate} = $1;
                 }
                 elsif ( $Line =~ /^BUILDHOST\s{0,2}=\s{0,2}(.*)\s{0,2}$/i ) {
-                    $Self->{Config}->{BuildHost} = $1;
+                    $Result->{BuildHost} = $1;
                 }
                 elsif ( $Line =~ /^BUILDNUMBER\s{0,2}=\s{0,2}(.*)\s{0,2}$/i ) {
-                    $Self->{Config}->{BuildNumber} = $1;
+                    $Result->{BuildNumber} = $1;
                 }
                 elsif ( $Line =~ /^PATCHNUMBER\s{0,2}=\s{0,2}(.*)\s{0,2}$/i ) {
-                    $Self->{Config}->{PatchNumber} = $1;
+                    $Result->{PatchNumber} = $1;
                 }
             }
         }
@@ -199,9 +210,17 @@ sub LoadSysConfig {
             Type  => $SysConfigObject->{CacheType},
             TTL   => $SysConfigObject->{CacheTTL},
             Key   => $CacheKey,
-            Value => $Self->{Config},
+            Value => $Result,
         );
     }
+
+    return $Result;
+}
+
+sub LoadSysConfig {
+    my ( $Self ) = @_;
+
+    $Self->{Config} = $Self->GetSysConfig();
 
     return 1;
 }

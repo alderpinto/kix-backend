@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -13,14 +13,15 @@ use warnings;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'DynamicField',
-    'LinkObject',
-    'Log',
-    'Main',
-    'Ticket',
-    'Time',
+our @ObjectDependencies = qw(
+    Config
+    DynamicField
+    LinkObject
+    Log
+    Main
+    Ticket
+    Time
+    ObjectSearch
 );
 
 # the base name for dynamic fields
@@ -44,22 +45,21 @@ sub new {
     $Self->{Config} = {
         Module                         => 'Kernel::System::PostMaster::Filter::SystemMonitoringX',
         'DynamicFieldContent::Ticket'  => 'SysMonXHost,SysMonXService,SysMonXAddress,SysMonXAlias,SysMonXState',
-        'DynamicFieldContent::Article' => '',
+        'DynamicFieldContent::Article' => q{},
 
-        AcknowledgeName      => 'Nagios1',
         AffectedAssetName    => 'AffectedAsset',
 
         CreateTicketType     => 'Incident',
         CreateTicketState    => 'new',
         CreateSenderType     => 'system',
         CreateChannel        => 'note',
-        CreateTicketQueue    => '',
-        CreateTicketSLA      => '',
+        CreateTicketQueue    => q{},
+        CreateTicketSLA      => q{},
 
         CloseNotIfLocked     => '0',
         StopAfterMatch       => '1',
-        FromAddressRegExp    => '.*',
-        ToAddressRegExp      => '.*',
+        FromAddressRegExp    => q{.*},
+        ToAddressRegExp      => q{.*},
 
         SysMonXAddressRegExp => '\s*Address:\s+(.*)\s*',
         SysMonXAliasRegExp   => '\s*Alias:\s+(.*)\s*',
@@ -100,7 +100,7 @@ sub Run {
     # see, whether to-address is of interest regarding system-monitoring
     my $ReceipientOfInterest = 0;
     if ( $Self->{Config}->{ToAddressRegExp} ) {
-        my $Recipient = '';
+        my $Recipient = q{};
         for my $CurrKey (qw(To Cc Resent-To)) {
             if ( $Param{GetParam}->{$CurrKey} ) {
                 if ($Recipient) {
@@ -114,7 +114,7 @@ sub Run {
             Line => substr($Recipient, 0, 1000)     # reduce parse length to prevent DoS (OSA-2022-13)
         );
         for my $CurrKey (@EmailAddresses) {
-            my $Address = $Self->{ParserObject}->GetEmailAddress( Email => $CurrKey ) || '';
+            my $Address = $Self->{ParserObject}->GetEmailAddress( Email => $CurrKey ) || q{};
             if ( $Address && $Address =~ /$Self->{Config}->{ToAddressRegExp}/i ) {
                 $ReceipientOfInterest = 1;
                 last;
@@ -166,17 +166,17 @@ sub Run {
     }
 
     # search ticket if followup...
-    my $TicketID = $Self->_TicketSearch() || '';
+    my $TicketID = $Self->_TicketSearch() || q{};
     $Kernel::OM->Get('Log')->Log(
         Priority => 'debug',
-        Message  => 'SysMon Mail: TID found <$TicketID>.',
+        Message  => "SysMon Mail: TID found <$TicketID>.",
     );
 
     # OK, found ticket to deal with
     if ($TicketID) {
         $Kernel::OM->Get('Log')->Log(
             Priority => 'debug',
-            Message  => 'SysMon Mail: FUP for TID <$TicketID> received.',
+            Message  => "SysMon Mail: FUP for TID <$TicketID> received.",
         );
         $Self->_TicketUpdate(
             TicketID => $TicketID,
@@ -208,46 +208,73 @@ sub _MailParse {
         return;
     }
 
-    my @DynamicFieldContentTicket = split( ',', $Self->{Config}->{'DynamicFieldContent::Ticket'} );
-    my @DynamicFieldContentArticle = split( ',', ($Self->{Config}->{'DynamicFieldContent::Article'} || ''));
-    my @DynamicFieldContent = ( @DynamicFieldContentTicket, @DynamicFieldContentArticle );
+    # get configured items
+    my @DynamicFieldContentTicket  = split( /[,]/sm , $Self->{Config}->{'DynamicFieldContent::Ticket'} );
+    my @DynamicFieldContentArticle = split( /[,]/sm , $Self->{Config}->{'DynamicFieldContent::Article'} );
+    my @DynamicFieldContent        = ( @DynamicFieldContentTicket, @DynamicFieldContentArticle );
 
-    my $Subject = $Param{GetParam}->{Subject};
+    # init hash to remember matched items
     my %AlreadyMatched;
 
-    # examine email SUBJECT...
-    my @SubjectLines = split /\n/, $Subject;
-    for my $Line (@SubjectLines) {
+    # Try to get configured items by pattern from email SUBJECT
+    my $Subject      = $Param{GetParam}->{Subject};
+    my @SubjectLines = split( /\n/, $Subject );
+    ITEM:
+    for my $Item ( @DynamicFieldContent ) {
+        # skip items without pattern
+        next ITEM if ( !$Self->{Config}->{ $Item . 'RegExp' } );
 
-        # extract to SysMon-State, -Host, -Service, -Address from email BODY
-        ITEM:
-        for my $Item (@DynamicFieldContent) {
-            next ITEM if !$Self->{Config}->{ $Item . 'RegExp' };
-            my $Regex = $Self->{Config}->{ $Item . 'RegExp' };
+        # isolate regex
+        my $Regex = $Self->{Config}->{ $Item . 'RegExp' };
+
+        # process subject lines
+        for my $Line ( @SubjectLines ) {
             if ( $Line =~ /$Regex/ ) {
-                $Self->{$Item} = $1;
-                $AlreadyMatched{$Item} = 1;
+                # get first capture group for item
+                $Self->{ $Item } = $1;
+
+                # remember matched item
+                $AlreadyMatched{ $Item } = 1;
+
+                # only get first match
+                next ITEM;
             }
         }
     }
 
-    # examine email BODY line by line...
-    my $Body = $Param{GetParam}->{Body} || die "Message has no Body";
-    my @BodyLines = split /\n/, $Body;
+    # check for existing body
+    if ( $Param{GetParam}->{Body} ) {
+        my $Body      = $Param{GetParam}->{Body};
+        my @BodyLines = split( /\n/, $Body );
 
-    LINE:
-    for my $Line (@BodyLines) {
-
-        # extract to SysMon-State, -Host, -Service, -Address from email BODY
+        # Try to get configured items by pattern from email BODY
         ITEM:
-        for my $Item (@DynamicFieldContent) {
-            next ITEM if !$Self->{Config}->{ $Item . 'RegExp' };
-            next ITEM if $AlreadyMatched{$Item};
+        for my $Item ( @DynamicFieldContent ) {
+            # skip already matched items
+            next ITEM if ( $AlreadyMatched{ $Item } );
 
+            # skip items without pattern
+            next ITEM if ( !$Self->{Config}->{ $Item . 'RegExp' } );
+
+            # isolate and prepare regex
             my $Regex = $Self->{Config}->{ $Item . 'RegExp' };
-            if ( $Line =~ /$Regex/ ) {
-                $Self->{$Item} = $1;
-                $AlreadyMatched{$Item} = 1;
+            if (
+                $Regex =~ m/^\.\+/
+                || $Regex =~ m/^\(\.\+/
+                || $Regex =~ m/^\(\?\:\.\+/
+            ) {
+                $Regex = q{^} . $Regex;
+            }
+
+            # process body lines
+            for my $Line ( @BodyLines ) {
+                if ( $Line =~ /$Regex/ ) {
+                    # get first capture group for item
+                    $Self->{ $Item } = $1;
+
+                    # only get first match
+                    next ITEM;
+                }
             }
         }
     }
@@ -342,7 +369,12 @@ sub _TicketSearch {
     # get 1st ticket for search (if there is one)...
     my $TicketID;
     if ( !$Errors ) {
-        my @TicketIDs = $Kernel::OM->Get('Ticket')->TicketSearch( %Query );
+        my @TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+            %Query,
+            ObjectType => 'Ticket',
+            UserID     => 1,
+            UserType   => 'Agent'
+        );
         if (@TicketIDs) {
             $TicketID = shift( @TicketIDs );
         }
@@ -423,9 +455,9 @@ sub _TicketCreate {
     my ( $Self, $Param ) = @_;
 
     my @DynamicFieldContentTicket
-        = split( ',', ($Self->{Config}->{'DynamicFieldContent::Ticket'} || '') );
+        = split( /[,]/sm, ($Self->{Config}->{'DynamicFieldContent::Ticket'} || q{}) );
     my @DynamicFieldContentArticle
-        = split( ',', ($Self->{Config}->{'DynamicFieldContent::Article'} || '') );
+        = split( /[,]/sm, ($Self->{Config}->{'DynamicFieldContent::Article'} || q{}) );
     my @DynamicFieldContent = ( @DynamicFieldContentTicket, @DynamicFieldContentArticle );
 
     for my $ConfiguredDynamicField (@DynamicFieldContentTicket) {
@@ -448,38 +480,57 @@ sub _TicketCreate {
         || $Param->{GetParam}->{'X-KIX-SenderType'};
     $Param->{GetParam}->{'X-KIX-Channel'} = $Self->{Config}->{CreateChannel}
         || $Param->{GetParam}->{'X-KIX-Channel'};
-    $Param->{GetParam}->{'X-KIX-Queue'} = $Self->{Config}->{CreateTicketQueue}
-        || $Param->{GetParam}->{'X-KIX-Queue'};
-    $Param->{GetParam}->{'X-KIX-State'} = $Self->{Config}->{CreateTicketState}
-        || $Param->{GetParam}->{'X-KIX-State'};
-    $Param->{GetParam}->{'X-KIX-Type'} = $Self->{Config}->{CreateTicketType}
-        || $Param->{GetParam}->{'X-KIX-Type'};
+
+    # check queue if given
+    if ( $Param->{GetParam}->{'X-KIX-Queue'} ) {
+        if ( !$Kernel::OM->Get('Queue')->NameExistsCheck( Name => $Param->{GetParam}->{'X-KIX-Queue'} ) ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'notice',
+                Message  => "Queue of X-KIX-Queue "
+                    . $Param->{GetParam}->{'X-KIX-Queue'}
+                    . " not found, using standard "
+                    . $Self->{Config}->{CreateTicketQueue},
+            );
+            $Param->{GetParam}->{'X-KIX-Queue'} = $Self->{Config}->{CreateTicketQueue};
+        }
+    } else {
+        $Param->{GetParam}->{'X-KIX-Queue'} = $Self->{Config}->{CreateTicketQueue};
+    }
+
+    # check state if given
+    if ( $Param->{GetParam}->{'X-KIX-State'} ) {
+        if ( !$Kernel::OM->Get('State')->StateLookup( State => $Param->{GetParam}->{'X-KIX-State'}, Silent => 1 ) ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'notice',
+                Message  => "State if X-KIX-State "
+                    . $Param->{GetParam}->{'X-KIX-State'}
+                    . " not found, using standard "
+                    . $Self->{Config}->{CreateTicketState},
+            );
+            $Param->{GetParam}->{'X-KIX-State'} = $Self->{Config}->{CreateTicketState};
+        }
+    } else {
+        $Param->{GetParam}->{'X-KIX-State'} = $Self->{Config}->{CreateTicketState};
+    }
+
+    # check type if given
+    if ( $Param->{GetParam}->{'X-KIX-Type'} ) {
+        if ( !$Kernel::OM->Get('Type')->TypeLookup( Type => $Param->{GetParam}->{'X-KIX-Type'}, Silent => 1 ) ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'notice',
+                Message  => "Type if X-KIX-Type "
+                    . $Param->{GetParam}->{'X-KIX-Type'}
+                    . " not found, using standard "
+                    . $Self->{Config}->{CreateTicketType},
+            );
+            $Param->{GetParam}->{'X-KIX-Type'} = $Self->{Config}->{CreateTicketType};
+        }
+    } else {
+        $Param->{GetParam}->{'X-KIX-Type'} = $Self->{Config}->{CreateTicketType};
+    }
+
     $Param->{GetParam}->{'X-KIX-SLA'} = $Self->{Config}->{CreateTicketSLA}
         || $Param->{GetParam}->{'X-KIX-SLA'};
-
-    # set DF AcknowledgeNameField to allow later sysmon source identification...
-    if ( $Self->{Config}->{AcknowledgeName} ) {
-        my $AcknowledgeNameField = $Kernel::OM->Get('Config')->Get('Tool::Acknowledge::RegistrationAllocation');
-        if ($AcknowledgeNameField) {
-            if ( $AcknowledgeNameField =~ /^\d+$/ ) {
-                $AcknowledgeNameField = $DynamicFieldTicketTextPrefix . $AcknowledgeNameField
-            }
-            my $DynamicField = $Kernel::OM->Get('DynamicField')->DynamicFieldGet(
-                'Name' => $AcknowledgeNameField,
-            );
-            if ( !IsHashRefWithData($DynamicField) ) {
-                $Kernel::OM->Get('Log')->Log(
-                    Priority => 'error',
-                    Message  => "SysMon Mail DF <" . $AcknowledgeNameField
-                        . "> does not exist.",
-                );
-            }
-            else {
-                $Param->{GetParam}->{ 'X-KIX-DynamicField-' . $AcknowledgeNameField }
-                    = $Self->{Config}->{AcknowledgeName} || 'Nagios';
-            }
-        }
-    }
 
     # set AffectedAssetNameField (thus linking ticket with asset and set inci state)
     if ( $Self->{Config}->{AffectedAssetName} ) {
@@ -495,31 +546,58 @@ sub _TicketCreate {
             );
         }
         else {
-            my $AssetID = "";
+            my $AssetID = q{};
 
             # search for CI by SysMonHost-Name...
-            my $ConfigItemIDs = $Self->{ConfigItemObject}->ConfigItemSearchExtended(
-                Name => $Self->{SysMonXHost},
+            my @ConfigItemIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+                ObjectType => 'ConfigItem',
+                Result     => 'ARRAY',
+                Search     => {
+                    AND => [
+                        {
+                            Field    => 'Name',
+                            Operator => 'EQ',
+                            Type     => 'STRING',
+                            Value    => $Self->{SysMonXHost}
+                        }
+                    ]
+                },
+                UserID     => 1,
+                UserType   => 'Agent'
             );
-            if ( IsArrayRefWithData($ConfigItemIDs) ) {
-                if ( scalar @{$ConfigItemIDs} > 1 ) {
+            if ( @ConfigItemIDs ) {
+                if ( scalar @ConfigItemIDs > 1 ) {
                     $Kernel::OM->Get('Log')->Log(
                         Priority => 'notice',
                         Message  => "Multiple assets for SysMon host <"
-                            .$Self->{Host}
+                            .$Self->{SysMonXHost}
                             . "> found, using first item only!",
                     );
                 }
-                $AssetID = $ConfigItemIDs->[0];
+                $AssetID = $ConfigItemIDs[0];
             }
 
             # if no CI found by SysMonHost-Name, search for SysMonService...
             else {
-              $ConfigItemIDs = $Self->{ConfigItemObject}->ConfigItemSearchExtended(
-                  Name => $Self->{SysMonXService},
-              );
-              if (  IsArrayRefWithData($ConfigItemIDs) ) {
-                    if ( scalar @{$ConfigItemIDs} > 1 ) {
+                @ConfigItemIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+                    ObjectType => 'ConfigItem',
+                    Result     => 'ARRAY',
+                    Search     => {
+                        AND => [
+                            {
+                                Field    => 'Name',
+                                Operator => 'EQ',
+                                Type     => 'STRING',
+                                Value    => $Self->{SysMonXService}
+                            }
+                        ]
+                    },
+                    UserID     => 1,
+                    UserType   => 'Agent'
+                );
+
+                if ( @ConfigItemIDs ) {
+                    if ( scalar @ConfigItemIDs > 1 ) {
                         $Kernel::OM->Get('Log')->Log(
                             Priority => 'notice',
                             Message  => "Multiple assets for SysMon service <"
@@ -527,8 +605,8 @@ sub _TicketCreate {
                                 . "> found, using first item only!",
                         );
                     }
-                    $AssetID = $ConfigItemIDs->[0];
-              }
+                    $AssetID = $ConfigItemIDs[0];
+                }
             }
 
             # set affected asset in ticket...
@@ -538,7 +616,7 @@ sub _TicketCreate {
 
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'debug',
-                Message  => 'SysMon Mail: asset found <$AssetID>.',
+                Message  => "SysMon Mail: asset found <$AssetID>.",
             );
 
         }

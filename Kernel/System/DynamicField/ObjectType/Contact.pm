@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -17,9 +17,10 @@ use Scalar::Util;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'FAQ',
-    'Log',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    FAQ
+    Log
 );
 
 =head1 NAME
@@ -114,14 +115,14 @@ sub PostValueSet {
             FieldName => $Param{DynamicFieldConfig}->{Name},
             Value     => $Param{Value},
             OldValue  => $Param{OldValue},
-            ItemID    => $Param{ObjectID},
+            ContactID => $Param{ObjectID},
             UserID    => $Param{UserID},
         },
         UserID => $Param{UserID},
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Contact',
         ObjectID  => $Param{ObjectID},

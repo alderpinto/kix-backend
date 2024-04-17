@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -12,25 +12,16 @@ use utf8;
 
 use vars (qw($Self));
 
-# get Job object
-my $AutomationObject = $Kernel::OM->Get('Automation');
-
-#
-# log tests
-#
-
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # create test job
 my $JobName  = 'job-'.$Helper->GetRandomID();
 
-my $JobID = $AutomationObject->JobAdd(
+my $JobID = $Kernel::OM->Get('Automation')->JobAdd(
     Name    => $JobName,
     Type    => 'Ticket',
     ValidID => 1,
@@ -45,7 +36,7 @@ $Self->True(
 # create test macro
 my $MacroName  = 'macro-'.$Helper->GetRandomID();
 
-my $MacroID = $AutomationObject->MacroAdd(
+my $MacroID = $Kernel::OM->Get('Automation')->MacroAdd(
     Name    => $MacroName,
     Type    => 'Ticket',
     ValidID => 1,
@@ -60,7 +51,9 @@ $Self->True(
 my $Result;
 
 # no parameters
-$Result = $AutomationObject->LogError();
+$Result = $Kernel::OM->Get('Automation')->LogError(
+    Silent => 1,
+);
 
 $Self->False(
     $Result,
@@ -68,7 +61,10 @@ $Self->False(
 );
 
 # no UserID
-$Result = $AutomationObject->LogError(Message => 'test');
+$Result = $Kernel::OM->Get('Automation')->LogError(
+    Message => 'test',
+    Silent  => 1,
+);
 
 $Self->False(
     $Result,
@@ -76,7 +72,10 @@ $Self->False(
 );
 
 # no Message
-$Result = $AutomationObject->LogError(UserID => 1);
+$Result = $Kernel::OM->Get('Automation')->LogError(
+    UserID => 1,
+    Silent => 1,
+);
 
 $Self->False(
     $Result,
@@ -84,9 +83,10 @@ $Self->False(
 );
 
 # with Message and UserID
-$Result = $AutomationObject->LogError(
+$Result = $Kernel::OM->Get('Automation')->LogError(
     Message => 'test',
-    UserID => 1
+    UserID  => 1,
+    Silent  => 1,
 );
 
 $Self->True(
@@ -95,12 +95,13 @@ $Self->True(
 );
 
 # with Referrer (JobID)
-$Result = $AutomationObject->LogError(
+$Result = $Kernel::OM->Get('Automation')->LogError(
     Referrer => {
         JobID => $JobID,
     },
     Message => 'Test',
-    UserID => 1
+    UserID  => 1,
+    Silent  => 1,
 );
 
 $Self->True(
@@ -109,13 +110,14 @@ $Self->True(
 );
 
 # with Referrer (JobID+MacroID)
-$Result = $AutomationObject->LogError(
+$Result = $Kernel::OM->Get('Automation')->LogError(
     Referrer => {
         JobID   => $JobID,
         MacroID => $MacroID,
     },
     Message => 'Test',
-    UserID => 1
+    UserID  => 1,
+    Silent  => 1,
 );
 
 $Self->True(
@@ -123,7 +125,61 @@ $Self->True(
     'LogError() without Referrer (JobID+MacroID)',
 );
 
-# cleanup is done by RestoreDatabase
+# check logging
+foreach my $MinimumLogLevel ( qw( error notice info debug) ) {
+    # set in Config
+    my $Success = $Kernel::OM->Get('Config')->Set(
+        Key   => 'Automation::MinimumLogLevel',
+        Value => $MinimumLogLevel,
+    );
+    $Self->True(
+        $Success,
+        "Set Automation::MinimumLogLevel to \"$MinimumLogLevel\"",
+    );
+
+    # discard object after changing minimum log level
+    $Kernel::OM->ObjectsDiscard(
+        Objects => ['Automation'],
+    );
+
+    my $MinimumLogLevel = $Kernel::OM->Get('Config')->Get('Automation::MinimumLogLevel') || 'error';
+    my $MinimumLogLevelNum = $Kernel::OM->Get('Log')->GetNumericLogLevel( Priority => $MinimumLogLevel);
+
+    foreach my $Priority ( qw( error notice info debug) ) {
+
+        my $LogCountBefore = $Kernel::OM->Get('Automation')->GetLogCount();
+
+        my $PriorityNum = $Kernel::OM->Get('Log')->GetNumericLogLevel( Priority => $Priority );
+
+        my $Result = $Kernel::OM->Get('Automation')->_Log(
+            Message  => "logging with priority \"$Priority\" and MinLogLevel \"$MinimumLogLevel\"",
+            Priority => $Priority,
+            UserID   => 1,
+        );
+        $Self->True(
+            $Result,
+            "_Log() with priority \"$Priority\" returns 1",
+        );
+
+        my $LogCount = $Kernel::OM->Get('Automation')->GetLogCount();
+
+        if ( $PriorityNum >= $MinimumLogLevelNum ) {
+            $Self->True(
+                $LogCount - $LogCountBefore,
+                "_Log() with priority \"$Priority\" created log entry",
+            );
+        }
+        else {
+            $Self->False(
+                $LogCount - $LogCountBefore,
+                "_Log() with priority \"$Priority\" created no log entry",
+            );
+        }
+    }
+}
+
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

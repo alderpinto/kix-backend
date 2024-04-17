@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -137,25 +137,28 @@ sub Run {
         Result => 'ARRAY',
         Limit  => 1,
         UserID => 1,
+        Search => {
+            'AND' => []
+        },
     );
 
     # check if we should only find the ticket number in tickets with a given state type
     if ( defined $Param{JobConfig}->{TicketStateTypes} && $Param{JobConfig}->{TicketStateTypes} ) {
 
-        $Query{StateTypeIDs} = [];
-        my @StateTypeIDs;
+        my @StateTypes;
 
         # if StateTypes contains semicolons, use that for split,
         # otherwise split on spaces (for compat)
         if ( $Param{JobConfig}->{TicketStateTypes} =~ m{;} ) {
-            @StateTypeIDs = split ';', $Param{JobConfig}->{TicketStateTypes};
+            @StateTypes = split ';', $Param{JobConfig}->{TicketStateTypes};
         }
         else {
-            @StateTypeIDs = split ' ', $Param{JobConfig}->{TicketStateTypes};
+            @StateTypes = split ' ', $Param{JobConfig}->{TicketStateTypes};
         }
 
+        my @StateTypeIDs = ();
         STATETYPE:
-        for my $StateType (@StateTypeIDs) {
+        for my $StateType (@StateTypes) {
 
             next STATETYPE if !$StateType;
 
@@ -164,21 +167,36 @@ sub Run {
             );
 
             if ($StateTypeID) {
-                push @{ $Query{StateTypeIDs} }, $StateTypeID;
+                push( @StateTypeIDs, $StateTypeID );
             }
         }
+
+        push( @{ $Query{Search}->{AND} }, {
+                Field    => 'StateTypeIDs',
+                Value    => \@StateTypeIDs,
+                Operator => 'IN',
+            }
+        );
     }
 
     # dynamic field search condition
-    $Query{ 'DynamicField_' . $Param{JobConfig}->{'DynamicFieldName'} } = {
-        Equals => $Self->{Number},
-    };
+    push( @{ $Query{Search}->{AND} }, {
+            Field    => 'DynamicField_' . $Param{JobConfig}->{'DynamicFieldName'},
+            Value    => $Self->{Number},
+            Operator => 'EQ',
+        }
+    );
 
     # get ticket object
     my $TicketObject = $Kernel::OM->Get('Ticket');
 
     # search tickets
-    my @TicketIDs = $TicketObject->TicketSearch(%Query);
+    my @TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+        %Query,
+        ObjectType => 'Ticket',
+        UserID     => 1,
+        UserType   => 'Agent'
+    );
 
     # get the first and only ticket id
     my $TicketID = shift @TicketIDs;
@@ -204,8 +222,8 @@ sub Run {
         my $ConfigObject = $Kernel::OM->Get('Config');
 
         # build subject
-        my $TicketHook        = $ConfigObject->Get('Ticket::Hook');
-        my $TicketHookDivider = $ConfigObject->Get('Ticket::HookDivider');
+        my $TicketHook        = $ConfigObject->Get('Ticket::Hook') || '';
+        my $TicketHookDivider = $ConfigObject->Get('Ticket::HookDivider') || '';
         $Param{GetParam}->{Subject} .= " [$TicketHook$TicketHookDivider$TicketNumber]";
 
         # set sender type and article type.

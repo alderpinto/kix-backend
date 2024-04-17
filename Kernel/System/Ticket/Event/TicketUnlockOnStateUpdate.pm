@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -72,7 +72,7 @@ sub Run {
         }
 
         # get ticket is locked
-        return 1 if ( !$Self->{TicketObject}->LockIsTicketLocked( TicketID => $Param{Data}->{TicketID} ) );
+        return 1 if ( !$Self->{TicketObject}->TicketLockGet( TicketID => $Param{Data}->{TicketID} ) );
 
         #get ticket data...
         my %TicketData = $Self->{TicketObject}->TicketGet(
@@ -109,7 +109,7 @@ sub Run {
             if ( $TicketData{State} eq $State ) {
 
                 # unlock Ticket
-                $Self->{TicketObject}->LockSet(
+                $Self->{TicketObject}->TicketLockSet(
                     Lock               => 'unlock',
                     TicketID           => $Param{Data}->{TicketID},
                     SendNoNotification => 0,

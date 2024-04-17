@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -63,9 +63,7 @@ sub Run {
         my @Row = @{$_};
 
         # get used calendar
-        my $Calendar = $Kernel::OM->Get('Ticket')->TicketCalendarGet(
-            TicketID => $Row[1],
-        );
+        my $Calendar = '';          # use main calendar as fallback
 
         my $CountedTime = $Kernel::OM->Get('Time')->WorkingTime(
             StartTime => $Row[2],
@@ -75,7 +73,7 @@ sub Run {
         next TICKET if $CountedTime < $Row[3] * 60;
 
         $Self->Print(" Unlocking ticket id $Row[0]... ");
-        my $Unlock = $Kernel::OM->Get('Ticket')->LockSet(
+        my $Unlock = $Kernel::OM->Get('Ticket')->TicketLockSet(
             TicketID => $Row[1],
             Lock     => 'unlock',
             UserID   => 1,

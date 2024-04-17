@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -11,6 +11,7 @@ package Kernel::API::Provider::REST;
 use strict;
 use warnings;
 
+use CGI;
 use HTTP::Status;
 use URI::Escape;
 use Time::HiRes qw(time);
@@ -55,16 +56,13 @@ sub CheckAuthorization {
     my ( $Self, %Param ) = @_;
 
     # check authentication header
-    my $cgi = CGI->new;
-    my %Headers = map { $_ => $cgi->http($_) } $cgi->http();
-
-    if ( !$Headers{HTTP_AUTHORIZATION} ) {
+    if ( !$ENV{HTTP_AUTHORIZATION} ) {
         return $Self->_Error(
             Code => 'Authorization.NoHeader'
         );
     }
 
-    my %Authorization = split(/\s+/, $Headers{HTTP_AUTHORIZATION});
+    my %Authorization = split(/\s+/, $ENV{HTTP_AUTHORIZATION});
 
     if ( !$Authorization{Token} ) {
         return $Self->_Error(
@@ -142,6 +140,20 @@ sub ProcessRequest {
 
     my $Operation;
     my %URIData;
+    
+    my %Headers;
+    HEADER:
+    foreach my $Key ( keys %ENV ) {
+        next HEADER if $Key !~ /^HTTP_/; 
+        next HEADER if $Key =~ /^HTTP_(PROXY|HOST)/;
+        my $Header = $Key;
+        $Header =~ s/^HTTP_//g;
+        $Header =~ s/_/-/g;
+        $Header = ucfirst lc $Header;
+        $Headers{$Header} = $ENV{$Key};
+    }
+    $Headers{'Content-type'} = $ENV{CONTENT_TYPE};
+
     my $RequestURI = $ENV{REQUEST_URI};
     $RequestURI =~ s{(\/.*)$}{$1}xms;
     # remove any query parameter form the URL
@@ -164,7 +176,7 @@ sub ProcessRequest {
         #       Password  => 'secret',
         #    );
         for my $QueryParam ( split '&|;', $QueryParamsStr ) {
-            my ( $Key, $Value ) = split '=', $QueryParam;
+            my ( $Key, $Value ) = split '=', $QueryParam, 2;
 
             # Convert + characters to its encoded representation, see bug#11917
             $Value =~ s{\+}{%20}g;
@@ -197,9 +209,7 @@ sub ProcessRequest {
     ROUTE:
     for my $CurrentOperation ( sort keys %{ $Self->{TransportConfig}->{RouteOperationMapping} } ) {
 
-        next ROUTE if !IsHashRefWithData( $Self->{TransportConfig}->{RouteOperationMapping}->{$CurrentOperation} );
-
-        my %RouteMapping = %{ $Self->{TransportConfig}->{RouteOperationMapping}->{$CurrentOperation} };
+        my %RouteMapping = %{ $Self->{TransportConfig}->{RouteOperationMapping}->{$CurrentOperation} || {} };
 
         if ( $RequestMethod ne 'OPTIONS' && IsArrayRefWithData( $RouteMapping{RequestMethod} ) ) {
             next ROUTE if !grep { $RequestMethod eq $_ } @{ $RouteMapping{RequestMethod} };
@@ -219,9 +229,12 @@ sub ProcessRequest {
         #         Other    => 2,
         #     );
         my $RouteRegEx = $RouteMapping{Route};
-        $RouteRegEx =~ s{:([^\/]+)}{(?<$1>[^\/]+)}xmsg;
+        $RouteRegEx =~ s{:([a-z][a-z0-9]*)}{(?<$1>[^\/]+)}xmsgi;
 
-        next ROUTE if !( $RequestURI =~ m{^ $RouteRegEx $}xms );
+        next ROUTE if !(
+            eval { qr/^ $RouteRegEx $/xms }
+            && $RequestURI =~ m{^ $RouteRegEx $}xms
+        );
 
         # import URI params
         my %URIParams;
@@ -267,20 +280,25 @@ sub ProcessRequest {
     my %AvailableMethods;
     for my $CurrentOperation ( sort keys %{ $Self->{TransportConfig}->{RouteOperationMapping} } ) {
 
-        next if !IsHashRefWithData( $Self->{TransportConfig}->{RouteOperationMapping}->{$CurrentOperation} );
-
-        my %RouteMapping = %{ $Self->{TransportConfig}->{RouteOperationMapping}->{$CurrentOperation} };
+        my %RouteMapping = %{ $Self->{TransportConfig}->{RouteOperationMapping}->{$CurrentOperation} || {} };
         my $RouteRegEx = $RouteMapping{Route};
-        $RouteRegEx =~ s{:([^\/]+)}{(?<$1>[^\/]+)}xmsg;
+        $RouteRegEx =~ s{:([a-z][a-z0-9]*)}{(?<$1>[^\/]+)}xmsgi;
 
         my $Base = $RouteMapping{Route};
         $Base =~ s{(/:[^\/]+)}{}xmsg;
 
-        next if !( $Base =~ m{^ $BaseRoute }xms );
+        next if !( 
+            eval { qr/^ $BaseRoute /xms }
+            && $Base =~ m{^ $BaseRoute }xms
+        );
 
-        next if !( $RequestURI =~ m{^ $RouteRegEx $}xms );
+        next if !( 
+            eval { qr/^ $RouteRegEx $/xms }
+            && $RequestURI =~ m{^ $RouteRegEx $}xms
+        );
+        
         # only add if we didn't have a match upto now
-        next if IsHashRefWithData($AvailableMethods{$RouteMapping{RequestMethod}->[0]});
+        next if exists $AvailableMethods{$RouteMapping{RequestMethod}->[0]};
 
         $AvailableMethods{$RouteMapping{RequestMethod}->[0]} = {
             Operation => $CurrentOperation,
@@ -373,6 +391,7 @@ sub ProcessRequest {
             RequestMethod  => $RequestMethod,
             ResourceOperationRouteMapping => \%ResourceOperationRouteMapping,
             ParentMethodOperationMapping => \%ParentMethodOperationMapping,
+            Headers   => \%Headers,
             Data      => {
                 %URIData,
             },
@@ -401,8 +420,11 @@ sub ProcessRequest {
 
     # convert char-set if necessary
     my $ContentCharset;
-    if ( $ENV{'CONTENT_TYPE'} =~ m{ \A .* charset= ["']? ( [^"']+ ) ["']? \z }xmsi ) {
-        $ContentCharset = $1;
+    if ( $ENV{'CONTENT_TYPE'} =~ /charset=/i ) {
+        $ContentCharset = $ENV{'CONTENT_TYPE'};
+        $ContentCharset =~ s/.+?charset=("|'|)(\w+)/$2/gi;
+        $ContentCharset =~ s/"|'//g;
+        $ContentCharset =~ s/(.+?);.*/$1/g;
     }
     if ( $ContentCharset && $ContentCharset !~ m{ \A utf [-]? 8 \z }xmsi ) {
         $Content = $EncodeObject->Convert2CharsetInternal(
@@ -414,15 +436,46 @@ sub ProcessRequest {
         $EncodeObject->EncodeInput( \$Content );
     }
 
-    my $ContentDecoded = $Kernel::OM->Get('JSON')->Decode(
-        Data => $Content,
-    );
-
-    if ( !$ContentDecoded ) {
-        return $Self->_Error(
-            Code    => 'Transport.REST.InvalidJSON',
-            Message => 'Error while decoding request content.',
+    my $ContentDecoded = $Content;
+    if ( $ENV{'CONTENT_TYPE'} =~ /^application\/json/ ) {
+        $ContentDecoded = $Kernel::OM->Get('JSON')->Decode(
+            Data => $Content,
         );
+
+        if ( !$ContentDecoded ) {
+            return $Self->_Error(
+                Code    => 'Transport.REST.InvalidJSON',
+                Message => 'Error while decoding request content.',
+            );
+        }
+    }
+    # no content-type is provided, assume its json
+    elsif ( !$ENV{'CONTENT_TYPE'} ) {
+        $ContentDecoded = $Kernel::OM->Get('JSON')->Decode(
+            Data   => $Content,
+            Silent => 1
+        );
+
+        # content could not be decoded as json, use provided content
+        if ( !$ContentDecoded ) {
+            $ContentDecoded = $Content;
+        }
+    }
+    # workaround for fieldservice-app
+    elsif (
+        $ENV{'CONTENT_TYPE'} eq 'text/plain; charset=utf-8'
+        && $ENV{HTTP_USER_AGENT} eq 'Dart/3.0 (dart:io)'
+    ) {
+        $ContentDecoded = $Kernel::OM->Get('JSON')->Decode(
+            Data => $Content,
+        );
+
+        if ( !$ContentDecoded ) {
+            return $Self->_Error(
+                Code    => 'Transport.REST.InvalidJSON',
+                Message => 'Error while decoding request content.',
+            );
+        }
     }
 
     my $ReturnData;
@@ -444,10 +497,8 @@ sub ProcessRequest {
         }
     }
     else {
-        return $Self->_Error(
-            Code    => 'Transport.REST.InvalidRequest',
-            Message => 'Unsupported request content structure.',
-        );
+        $ReturnData = { Content => $ContentDecoded };
+        @{$ReturnData}{ keys %URIData } = values %URIData;
     }
 
     # all ok - return data
@@ -459,6 +510,7 @@ sub ProcessRequest {
         RequestMethod                 => $RequestMethod,
         ResourceOperationRouteMapping => \%ResourceOperationRouteMapping,
         ParentMethodOperationMapping  => \%ParentMethodOperationMapping,
+        Headers                       => \%Headers,
         Data                          => $ReturnData,
     );
 }
@@ -504,7 +556,7 @@ sub GenerateResponse {
     }
 
     # do we have to return an http error code
-    if ( IsStringWithData( $Param{Code} ) ) {
+    if ( IsStringWithData( $Param{Code} ) && !IsInteger($Param{Code}) ) {
         # map error code to HTTP code
         my $Result = $Self->_MapReturnCode(
             Transport    => 'HTTP::REST',
@@ -527,6 +579,9 @@ sub GenerateResponse {
                 $MappedMessage = $Param{Message};
             }
         }
+    }
+    elsif ( IsInteger($Param{Code}) ) {
+        $MappedCode = $Param{Code},
     }
 
     # do we have to return an error message
@@ -566,14 +621,15 @@ sub GenerateResponse {
     }
 
     # prepare data
-    my $JSONString = '';
+    my $Content = $Param{Message};
+
     if ( IsHashRefWithData($Param{Data}) ) {
-        $JSONString = $Kernel::OM->Get('JSON')->Encode(
+        $Content = $Kernel::OM->Get('JSON')->Encode(
             Data     => $Param{Data},
             SortKeys => $Param{DoNotSortAttributes} ? 0 : 1
         );
 
-        if ( !$JSONString ) {
+        if ( !$Content ) {
             return $Self->_Output(
                 HTTPCode => 500,
                 Content  => {
@@ -587,7 +643,7 @@ sub GenerateResponse {
     # no error - return output
     return $Self->_Output(
         HTTPCode   => $HTTPCode,
-        Content    => $JSONString,
+        Content    => $Content,
         AddHeader  => $AddHeader,
     );
 }
@@ -626,6 +682,7 @@ sub _Output {
     my ( $Self, %Param ) = @_;
     my $Success = 1;
     my $Message;
+    my %Headers = %{$Param{AddHeader}||{}};
 
     my $Content = $Param{Content};
     if ( IsHashRefWithData($Content) ) {
@@ -659,7 +716,8 @@ sub _Output {
     # prepare data
     $Content         ||= '';
     $Param{HTTPCode} ||= 500;
-    my $ContentType =  'application/json';
+    my $ContentType =  $Headers{'Content-Type'} || $Headers{'content-type'} || 'application/json';
+    delete $Headers{'Content-Type'};
 
     # adjust HTTP code
     my $HTTPCode = $Param{HTTPCode};
@@ -671,15 +729,22 @@ sub _Output {
 
     # log error message
     if ( $HTTPCode !~ /^2/ ) {
-        printf STDERR "\nAPI ERROR: ProcessID: %i Time: %s\n\n%11s: %s\n%11s: %s\n%11s: %i ms\n%11s: %s\n%11s: %s\n%11s: %s\n\n",
+        my $Message = '';
+
+        if ( IsHashRefWithData($Content) || IsHashRefWithData($Param{Content}) ) {
+            $Message = sprintf "\n%11s: %s\n%11s: %s",
+                'Code', IsHashRefWithData($Content) ? $Content->{Code} : $Param{Content}->{Code},
+                'Message', IsHashRefWithData($Content) ? $Content->{Message} : $Param{Content}->{Message};
+        }
+
+        printf STDERR "\nAPI ERROR: ProcessID: %i Time: %s\n\n%11s: %s\n%11s: %s\n%11s: %i ms\n%11s: %s%s\n\n",
             $$,
             $Kernel::OM->Get('Time')->CurrentTimestamp(),
-            'Method', $Self->{RequestMethod},
-            'Resource', $ENV{REQUEST_URI},
-            'Duration', TimeDiff($Self->{RequestStartTime}),
+            'Method', $Self->{ProcessedRequest}->{RequestMethod},
+            'Resource', $Self->{ProcessedRequest}->{RequestURI},
+            'Duration', TimeDiff($Self->{Metric}->{StartTime}),
             'HTTPStatus', $HTTPCode.' '.$StatusMessage,
-            'Code', IsHashRefWithData($Content) ? $Content->{Code} : $Param{Content}->{Code},
-            'Message', IsHashRefWithData($Content) ? $Content->{Message} : $Param{Content}->{Message};
+            $Message
     }
 
     # finally
@@ -691,6 +756,12 @@ sub _Output {
 
     # calculate content length (based on the bytes length not on the characters length)
     my $ContentLength = bytes::length( $Content );
+
+    # update metric
+    if ( $Self->{Metric} ) {
+        $Self->{Metric}->{HTTPCode} = $HTTPCode;
+        $Self->{Metric}->{OutBytes} = $ContentLength;
+    }
 
     # set keep-alive
     my $Connection = $Self->{KeepAlive} ? 'Keep-Alive' : 'close';
@@ -714,10 +785,8 @@ sub _Output {
     print STDOUT "Connection: $Connection\r\n";
 
     # add headers if requested
-    if ( IsHashRefWithData($Param{AddHeader}) ) {
-        foreach my $Header ( sort keys %{$Param{AddHeader}} ) {
-            print STDOUT "$Header: $Param{AddHeader}->{$Header}\r\n";
-        }
+    foreach my $Header ( sort keys %Headers ) {
+        print STDOUT "$Header: $Headers{$Header}\r\n";
     }
 
     print STDOUT "\r\n";

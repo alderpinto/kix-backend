@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -8,7 +8,7 @@
 # did not receive this file, see https://www.gnu.org/licenses/agpl.txt.
 # --
 
-package scripts::test::sample::DynamicField::DummyBackend;
+package scripts::test::system::sample::DynamicField::DummyBackend;
 
 use strict;
 use warnings;
@@ -64,7 +64,7 @@ sub DummyFunction1 {
     # verify if function is available
     return if !$Self->{$DynamicFieldBackend}->can('DummyFunction1');
 
-    # call HasBehavior on the specific backend
+    # call DummyFunction1 on the specific backend
     return $Self->{$DynamicFieldBackend}->DummyFunction1(%Param);
 }
 
@@ -113,7 +113,7 @@ sub DummyFunction2 {
     # verify if function is available
     return if !$Self->{$DynamicFieldBackend}->can('DummyFunction2');
 
-    # call HasBehavior on the specific backend
+    # call DummyFunction2 on the specific backend
     return $Self->{$DynamicFieldBackend}->DummyFunction2(%Param);
 }
 

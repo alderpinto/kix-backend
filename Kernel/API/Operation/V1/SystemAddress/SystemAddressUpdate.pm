@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -117,6 +117,7 @@ sub Run {
         Comment  => exists $SystemAddress->{Comment} ? $SystemAddress->{Comment} : $SystemAddressData{Comment},
         ValidID  => $SystemAddress->{ValidID} || $SystemAddressData{ValidID},
         Realname => $SystemAddress->{Realname} || $SystemAddressData{Realname},
+        QueueID  => exists $SystemAddress->{QueueID} ? $SystemAddress->{QueueID} : $SystemAddressData{QueueID},
         UserID   => $Self->{Authorization}->{UserID},
     );
 

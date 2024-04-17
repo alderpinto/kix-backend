@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -29,7 +29,7 @@
    checkname => 'KIX Checker',
 
 # Text shown in Status Information if everything is OK
-   OK_TXT    => 'enjoy   tickets:',
+   OK_TXT    => 'number of tickets:',
 
 # Text shown in Status Information if warning threshold reached
    WARN_TXT  => 'number of tickets:',
@@ -39,7 +39,6 @@
 
 );
 
-1;
 
 =back
 

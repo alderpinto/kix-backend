@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -15,7 +15,7 @@ use warnings;
 
 use Time::HiRes;
 
-use Kernel::System::Role::Permission;
+use Kernel::System::Role::Permission qw(:all);
 use Kernel::System::VariableCheck qw(:all);
 
 our $ObjectManagerDisabled = 1;
@@ -125,7 +125,7 @@ sub UpdateBasePermissions {
                 );
                 next PERMISSION;
             }
-        } 
+        }
         elsif ( !IsHashRefWithData($AssignedPermission) ) {
             # add permission
             my $Success = $RoleObject->PermissionAdd(

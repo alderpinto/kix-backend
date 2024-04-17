@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -21,21 +21,19 @@ my $ReportingObject = $Kernel::OM->Get('Reporting');
 my $ValidatorObject = Kernel::API::Validator::ReportDefinitionValidator->new();
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
-my $NameRandom  = $Helper->GetRandomID();
+# begin transaction on database
+$Helper->BeginWork();
+
+my $NameRandom = $Helper->GetRandomID();
 
 # add report definition
 my $ReportDefinitionID = $ReportingObject->ReportDefinitionAdd(
-    Name    => 'reportdefinition-'.$NameRandom,
-    Type    => 'GenericSQL',
-    ValidID => 1,
-    UserID  => 1,
+    Name       => 'reportdefinition-'.$NameRandom,
+    DataSource => 'GenericSQL',
+    ValidID    => 1,
+    UserID     => 1,
 );
 
 $Self->True(
@@ -84,7 +82,8 @@ $Self->False(
     'Validate() - invalid attribute',
 );
 
-# cleanup is done by RestoreDatabase.
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

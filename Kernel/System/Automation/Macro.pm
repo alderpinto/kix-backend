@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -15,13 +15,14 @@ use Digest::MD5;
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'Cache',
-    'DB',
-    'Log',
-    'User',
-    'Valid',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    Cache
+    DB
+    Log
+    User
+    Valid
 );
 
 =head1 NAME
@@ -208,10 +209,12 @@ sub MacroAdd {
         Name => $Param{Name},
     );
     if ( $ID ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "A macro with the same name already exists.",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "A macro with the same name already exists.",
+            );
+        }
         return;
     }
 
@@ -246,7 +249,7 @@ sub MacroAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Macro',
         ObjectID  => $ID,
@@ -298,10 +301,12 @@ sub MacroUpdate {
             Name => $Param{Name},
         );
         if ( $ID && $ID != $Param{ID} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "A macro with the same name already exists.",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "A macro with the same name already exists.",
+                );
+            }
             return;
         }
     } else {
@@ -351,7 +356,7 @@ sub MacroUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Macro',
         ObjectID  => $Param{ID},
@@ -456,10 +461,12 @@ sub MacroDelete {
         ID => $Param{ID},
     );
     if ( !$Name ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "A macro with the ID $Param{ID} does not exist.",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "A macro with the ID $Param{ID} does not exist.",
+            );
+        }
         return;
     }
 
@@ -468,10 +475,12 @@ sub MacroDelete {
         ID => $Param{ID}
     );
     if (!$Deletable) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Cannot delete macro, it is used/referenced in at least one object.",
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Cannot delete macro, it is used/referenced in at least one object.",
+            );
+        }
         return;
     }
 
@@ -516,7 +525,7 @@ sub MacroDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'Macro',
         ObjectID  => $Param{ID},
@@ -574,6 +583,7 @@ executes a macro
     my $Success = $AutomationObject->MacroExecute(
         ID            => 123,        # the ID of the macro
         ObjectID      => 123,        # the ID of the object to execute the macro onto
+        Variables     => {...}       # optional, these will be available as macro variables
         UserID        => 1
     );
 
@@ -610,8 +620,16 @@ sub MacroExecute {
             AdditionalData => $Param{AdditionalData} || {}
         };
     }
-
+    
     $Self->{MacroID} = $Param{ID};
+
+    # add variables
+    if ( IsHashRefWithData($Param{Variables}) ) {
+        $Self->{MacroResults} = {
+            %{$Self->{MacroResults}||{}},
+            %{$Param{Variables}},
+        }
+    }
 
     # set possible new id e.g. if we are a sub macro
     $Self->{ObjectID} = $Param{ObjectID};
@@ -855,6 +873,68 @@ sub IsSubMacroOf {
     return 0;
 }
 
+=item MacroDump()
+
+gets the "script code" of a macro
+
+    my $Code = $AutomationObject->MacroDump(
+        ID => 123,       # the ID of the macro
+    );
+
+=cut
+
+sub MacroDump {
+    my ( $Self, %Param ) = @_;
+
+    # check needed stuff
+    for (qw(ID)) {
+        if ( !$Param{$_} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Need $_!"
+            );
+            return;
+        }
+    }
+
+    my %Macro = $Self->MacroGet(
+        ID => $Param{ID}
+    );
+    if ( !%Macro ) {
+        $Kernel::OM->Get('Log')->Log(
+            Priority => 'error',
+            Message  => "Macro with ID $Param{ID} not found!"
+        );
+        return;
+    }
+
+    my $Name = $Macro{Name};
+    $Name =~ s/"/\\\"/g;
+    my $Script = "Macro \"$Name\"";
+
+    foreach my $Attr ( qw(Type Comment) ) {
+        next if !$Macro{$Attr};
+        my $Value = $Macro{$Attr};
+        $Value =~ s/"/\\\"/g;
+        $Script .= ' --'.$Attr.' "'.$Value.'"';
+    }
+
+    $Script .= "\n";
+
+    foreach my $MacroActionID ( @{$Macro{ExecOrder} || []} ) {
+        my $MacroActionCode = $Self->MacroActionDump(
+            ID => $MacroActionID,
+        );
+        foreach my $Line ( split /\n/, $MacroActionCode) {
+            $Script .= $Self->{DumpConfig}->{Indent} . $Line . "\n";
+        }
+    }
+
+    $Script .= "End\n";
+
+    return $Script;
+}
+
 sub _LoadMacroTypeBackend {
     my ( $Self, %Param ) = @_;
 
@@ -1045,3 +1125,4 @@ LICENSE-GPL3 for license information (GPL3). If you did not receive this file, s
 <https://www.gnu.org/licenses/gpl-3.0.txt>.
 
 =cut
+

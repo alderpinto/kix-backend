@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -183,21 +183,25 @@ sub OutputFormatValidateConfig {
     # check needed stuff
     for (qw(Format)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
 
     my $Backend = $Self->_LoadOutputFormatBackend(
-        Name => $Param{Format},
+        Name   => $Param{Format},
+        Silent => $Param{Silent},
     );
     return if !$Backend;
 
     return $Backend->ValidateConfig(
-        Config => $Param{Config}
+        Config => $Param{Config},
+        Silent => $Param{Silent},
     );
 }
 
@@ -207,10 +211,12 @@ sub _LoadOutputFormatBackend {
     # check needed stuff
     for (qw(Name)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -223,29 +229,40 @@ sub _LoadOutputFormatBackend {
         my $Backends = $Kernel::OM->Get('Config')->Get('Reporting::OutputFormat');
 
         if ( !IsHashRefWithData($Backends) ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "No output format backend modules found!",
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "No output format backend modules found!",
+                );
+            }
             return;
         }
 
         my $Backend = $Backends->{$Param{Name}}->{Module};
 
-        if ( !$Kernel::OM->Get('Main')->Require($Backend) ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Unable to require $Backend!"
-            );
+        if (
+            !$Kernel::OM->Get('Main')->Require(
+                $Backend,
+                Silent => $Param{Silent},
+            )
+        ) {
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Unable to require $Backend!"
+                );
+            }
             return;
         }
 
         my $BackendObject = $Backend->new( %{$Self} );
         if ( !$BackendObject ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Unable to create instance of $Backend!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Unable to create instance of $Backend!"
+                );
+            }
             return;
         }
 

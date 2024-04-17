@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -13,11 +13,11 @@ use warnings;
 use vars (qw($Self));
 
 $Self->True(
-    $Kernel::OM->Get('scripts::test::ObjectManager::Dummy'),
+    $Kernel::OM->Get('scripts::test::system::ObjectManager::Dummy'),
     "Can load custom object",
 );
 
-my $NonexistingObject = eval { $Kernel::OM->Get('scripts::test::ObjectManager::Disabled') };
+my $NonexistingObject = eval { $Kernel::OM->Get('scripts::test::system::ObjectManager::Disabled') };
 $Self->True(
     $@,
     "Fetching an object that cannot be loaded via OM causes an exception",

@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -21,6 +21,7 @@ our @ObjectDependencies = (
     'Config',
     'DB',
     'Ticket',
+    'Watcher',
 );
 
 sub Configure {
@@ -145,9 +146,9 @@ sub Run {
         my $Count = 0;
         ROW:
         while ( my @Row = $DBObject->FetchrowArray() ) {
-
-            $TicketObject->TicketWatchUnsubscribe(
-                TicketID => $Row[0],
+            $Kernel::OM->Get('Watcher')->WatcherDelete(
+                Object   => 'Ticket',
+                ObjectID => $Row[0],
                 AllUsers => 1,
                 UserID   => 1,
             );

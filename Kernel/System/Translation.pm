@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -16,10 +16,11 @@ use Digest::MD5 qw(md5_hex);
 
 use Kernel::System::VariableCheck qw(:all);
 
-our @ObjectDependencies = (
-    'Config',
-    'DB',
-    'Log',
+our @ObjectDependencies = qw(
+    ClientRegistration
+    Config
+    DB
+    Log
 );
 
 our $DisableWarnings = 0;
@@ -306,10 +307,12 @@ sub PatternAdd {
     # check needed stuff
     for (qw(Value UserID)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -319,10 +322,12 @@ sub PatternAdd {
         Value => $Param{Value}
     );
     if ( $ID ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "An identical pattern already exists!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "An identical pattern already exists!"
+            );
+        }
         return;
     }
 
@@ -358,7 +363,7 @@ sub PatternAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Translation.Pattern',
         ObjectID  => $ID,
@@ -385,10 +390,12 @@ sub PatternUpdate {
     # check needed stuff
     for (qw(ID Value UserID)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -398,10 +405,12 @@ sub PatternUpdate {
         Value => $Param{Value}
     );
     if ( $ID && $ID != $Param{ID} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "An identical Pattern already exists!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "An identical Pattern already exists!"
+            );
+        }
         return;
     }
 
@@ -422,7 +431,7 @@ sub PatternUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Translation.Pattern',
         ObjectID  => $Param{ID},
@@ -474,7 +483,7 @@ sub PatternDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'Translation.Pattern',
         ObjectID  => $Param{ID},
@@ -503,10 +512,12 @@ sub TranslationLanguageAdd {
     # check needed stuff
     for (qw(PatternID Value Language UserID)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -518,10 +529,12 @@ sub TranslationLanguageAdd {
         ID => $Param{PatternID},
     );
     if ( !%Pattern ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "PatternID $Param{PatternID} doesn't exist!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "PatternID $Param{PatternID} doesn't exist!"
+            );
+        }
         return;
     }
 
@@ -531,10 +544,12 @@ sub TranslationLanguageAdd {
         Language  => $Param{Language},
     );
     if ( %TranslationLanguage ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "This translation language already exists!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "This translation language already exists!"
+            );
+        }
         return;
     }
 
@@ -554,7 +569,7 @@ sub TranslationLanguageAdd {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'CREATE',
         Namespace => 'Translation.Language',
         ObjectID  => $Param{PatternID}.'::'.$Param{Language},
@@ -778,10 +793,12 @@ sub TranslationLanguageUpdate {
     # check needed stuff
     for (qw(PatternID Language UserID)) {
         if ( !$Param{$_} ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Need $_!"
-            );
+            if ( !$Param{Silent} ) {
+                $Kernel::OM->Get('Log')->Log(
+                    Priority => 'error',
+                    Message  => "Need $_!"
+                );
+            }
             return;
         }
     }
@@ -792,10 +809,12 @@ sub TranslationLanguageUpdate {
         Language  => $Param{Language}
     );
     if ( !%Translation ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => "Translation language $Param{Language} doesn't exist for given pattern!"
-        );
+        if ( !$Param{Silent} ) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Translation language $Param{Language} doesn't exist for given pattern!"
+            );
+        }
         return;
     }
 
@@ -816,7 +835,7 @@ sub TranslationLanguageUpdate {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'UPDATE',
         Namespace => 'Translation.Language',
         ObjectID  => $Param{PatternID}.'::'.$Param{Language},
@@ -861,7 +880,7 @@ sub TranslationLanguageDelete {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'Translation.Language',
         ObjectID  => $Param{PatternID}.'::'.$Param{Language},
@@ -977,7 +996,7 @@ sub CleanUp {
     );
 
     # push client callback event
-    $Kernel::OM->Get('ClientRegistration')->NotifyClients(
+    $Kernel::OM->Get('ClientNotification')->NotifyClients(
         Event     => 'DELETE',
         Namespace => 'Translation.Pattern',
     );

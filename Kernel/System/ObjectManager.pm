@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -331,7 +331,7 @@ sub _ObjectBuild {
     }
 
     use strict 'refs';
-    $Self->{ObjectDependencies}->{$Package} = $Dependencies;
+    $Self->{ObjectDependencies}->{$Param{Package}} = $Dependencies;
 
     my %Params = %{ $Self->{Param}->{$Param{Package}} || $Param{Params} || {} };
 
@@ -352,42 +352,6 @@ sub _ObjectBuild {
     }
 
     $Self->{Objects}->{$Param{Package}} = $NewObject;
-
-    # TODO
-    # # check if we have to wrap a method for performance logging
-    # if ( !$Self->{StartUp} && !$Self->{PerfLogConfig} ) {
-    #     $Self->{PerfLogConfig} = $Self->Get('Config')->Get('PerfLogConfig') || {};
-
-    #     # init PerfLog
-    #     if ($Self->{PerfLogConfig} && $Self->{PerfLogConfig}->{OutputTo}) {
-    #         $Self->{PerfLogFile} = $Self->{PerfLogConfig}->{OutputTo};
-    #     }
-    # }
-    # if ($Self->{PerfLogConfig} && $Self->{PerfLogConfig}->{Methods} && $Self->{PerfLogConfig}->{Methods}->{$Package} && ref $Self->{PerfLogConfig}->{Methods}->{$Package} eq 'HASH') {
-    #     my $PreparedCount = 0;
-    #     foreach my $Method ( sort keys %{$Self->{PerfLogConfig}->{Methods}->{$Package}} ) {
-    #         my $PackageMethod = "$Package::$Method";
-    #         next if $PerfLogWrappedMethods{"$PackageMethod"};
-
-    #         if (!$PreparedCount++) {
-    #             print STDERR "preparing package $Package for performance logging\n";
-    #         }
-
-    #         print STDERR "    hooking method $Method...";
-
-    #         my $ReturnType = $Self->{PerfLogConfig}->{Methods}->{$Package}->{$Method};
-
-    #         $PerfLogWrappedMethods{"$PackageMethod"} = \&$PackageMethod;
-    #         no strict 'refs';
-    #         no warnings 'redefine';
-    #         *{$PackageMethod} = sub {
-    #             my ($ObjRef, %Param) = @_;
-    #             Kernel::System::ObjectManager::_PerfLogMethodWrapper($Self, "$PackageMethod", $ReturnType, $ObjRef, %Param);
-    #         };
-
-    #         print STDERR "OK\n";
-    #     }
-    # }
 
     return $NewObject;
 }
@@ -524,6 +488,11 @@ sub ObjectsDiscard {
     }
     delete $Self->{EventHandlers};
 
+    # send all outstanding notifications to the registered clients
+    if ( $Self->Get('ClientNotification')->NotificationCount() > 0) {
+        $Self->Get('ClientNotification')->NotificationSend();
+    }
+
     # destroy objects before their dependencies are destroyed
 
     # first step: get the dependencies into a single hash,
@@ -533,7 +502,7 @@ sub ObjectsDiscard {
     for my $Object ( sort keys %{ $Self->{Objects} } ) {
         my $Dependencies = $Self->{ObjectDependencies}->{$Object};
 
-        for my $Dependency (@$Dependencies) {
+        for my $Dependency (@{$Dependencies}) {
 
             # undef happens to be the value that uses the least amount
             # of memory in Perl, and we are only interested in the keys
@@ -730,10 +699,8 @@ sub _PerfLogMethodWrapper {
 sub CleanUp {
     my ($Self, %Param) = @_;
 
-    # send all outstanding notifications to the registered clients
-    if ( $Self->Get('ClientRegistration')->NotificationCount() > 0) {
-        $Self->Get('ClientRegistration')->NotificationSend();
-    }
+    # export unhandled metrics
+    $Self->Get('Metric')->Export(Type => 'API');
 
     # discard all objects
     $Self->ObjectsDiscard();

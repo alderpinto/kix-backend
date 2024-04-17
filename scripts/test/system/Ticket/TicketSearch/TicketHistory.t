@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -14,16 +14,22 @@ use utf8;
 
 use vars (qw($Self));
 
-# get ticket object
+# get needed objects
 my $TicketObject = $Kernel::OM->Get('Ticket');
+my $UserObject   = $Kernel::OM->Get('User');
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
+
+my $TestUserLogin = $Helper->TestUserCreate(
+    Roles => ['Ticket Agent'],
+);
+my $TestUserID = $UserObject->UserLookup(
+    UserLogin => $TestUserLogin,
+);
 
 my @TicketIDs;
 
@@ -35,7 +41,7 @@ for ( 1 .. 2 ) {
         Lock       => 'unlock',
         PriorityID => 1,
         StateID    => 1,
-        OwnerID    => 1,
+        OwnerID    => $TestUserID,
         UserID     => 1,
     );
 
@@ -80,58 +86,130 @@ my @Tests = (
     {
         Name   => "CreatedTypeIDs",
         Config => {
-            CreatedTypeIDs => [ '1', ],
+            Search => {
+                AND => [
+                    {
+                        Field    => 'CreatedTypeIDs',
+                        Operator => 'IN',
+                        Type     => 'NUMERIC',
+                        Value    => [ 1 ]
+                    }
+                ]
+            }
         },
         ExpectedTicketIDs => [ $TicketIDs[0], $TicketIDs[1] ],
     },
     {
         Name   => "CreatedStateIDs",
         Config => {
-            CreatedStateIDs => [ '1', ],
+            Search => {
+                AND => [
+                    {
+                        Field    => 'CreatedStateIDs',
+                        Operator => 'IN',
+                        Type     => 'NUMERIC',
+                        Value    => [ 1 ]
+                    }
+                ]
+            }
         },
         ExpectedTicketIDs => [ $TicketIDs[0], ],
     },
     {
-        Name   => "CreatedUserIDs",
+        Name   => "CreateByID",
         Config => {
-            CreatedUserIDs => [ '1', ],
+            Search => {
+                AND => [
+                    {
+                        Field    => 'CreateByID',
+                        Operator => 'IN',
+                        Type     => 'NUMERIC',
+                        Value    => [ 1 ]
+                    }
+                ]
+            }
         },
         ExpectedTicketIDs => [ $TicketIDs[0], $TicketIDs[1] ],
     },
     {
         Name   => "CreatedQueueIDs",
         Config => {
-            CreatedQueueIDs => [ '1', ],
+            Search => {
+                AND => [
+                    {
+                        Field    => 'CreatedQueueIDs',
+                        Operator => 'IN',
+                        Type     => 'NUMERIC',
+                        Value    => [ 1 ]
+                    }
+                ]
+            }
         },
         ExpectedTicketIDs => [ $TicketIDs[0], $TicketIDs[1] ],
     },
     {
         Name   => "CreatedPriorityIDs",
         Config => {
-            CreatedPriorityIDs => [ '1', ],
+            Search => {
+                AND => [
+                    {
+                        Field    => 'CreatedPriorityIDs',
+                        Operator => 'IN',
+                        Type     => 'NUMERIC',
+                        Value    => [ 1 ]
+                    }
+                ]
+            }
         },
         ExpectedTicketIDs => [ $TicketIDs[0], $TicketIDs[1] ],
     },
     {
         Name   => "TicketChangeTimeOlderDate",
         Config => {
-            TicketChangeTimeOlderDate => $TimeObject->CurrentTimestamp(),
+            Search => {
+                AND => [
+                    {
+                        Field    => 'ChangeTime',
+                        Operator => 'LTE',
+                        Type     => 'STRING',
+                        Value    => $TimeObject->CurrentTimestamp()
+                    }
+                ]
+            }
         },
         ExpectedTicketIDs => [ $TicketIDs[0], $TicketIDs[1] ],
     },
     {
         Name   => "TicketCloseTimeOlderDate",
         Config => {
-            TicketCloseTimeOlderDate => $TimeObject->CurrentTimestamp(),
+            Search => {
+                AND => [
+                    {
+                        Field    => 'CloseTime',
+                        Operator => 'LTE',
+                        Type     => 'STRING',
+                        Value    => $TimeObject->CurrentTimestamp()
+                    }
+                ]
+            }
         },
         ExpectedTicketIDs => [ $TicketIDs[1] ],
     },
     {
         Name   => "TicketCloseTimeNewerDate",
         Config => {
-            TicketCloseTimeNewerDate => $TimeObject->SystemTime2TimeStamp(
-                SystemTime => $TimeObject->SystemTime() - 61,
-            ),
+            Search => {
+                AND => [
+                    {
+                        Field    => 'CloseTime',
+                        Operator => 'GTE',
+                        Type     => 'STRING',
+                        Value    => $TimeObject->SystemTime2TimeStamp(
+                            SystemTime => $TimeObject->SystemTime() - 61,
+                        )
+                    }
+                ]
+            }
         },
         ExpectedTicketIDs => [ $TicketIDs[1] ],
     },
@@ -139,11 +217,17 @@ my @Tests = (
 
 for my $Test (@Tests) {
 
-    my @ReturnedTicketIDs = $TicketObject->TicketSearch(
-        Result  => 'ARRAY',
-        UserID  => 1,
-        OrderBy => ['Up'],
-        SortBy  => ['TicketNumber'],
+    my @ReturnedTicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+        ObjectType => 'Ticket',
+        UserType   => 'Agent',
+        UserID     => 1,
+        Result     => 'ARRAY',
+        Sort       => [
+            {
+                Field     => 'TicketNumber',
+                Direction => 'ASCENDING'
+            }
+        ],
         %{ $Test->{Config} },
     );
 
@@ -158,7 +242,8 @@ for my $Test (@Tests) {
     }
 }
 
-# cleanup is done by RestoreDatabase.
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

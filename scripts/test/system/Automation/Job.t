@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -15,17 +15,11 @@ use vars (qw($Self));
 # get Job object
 my $AutomationObject = $Kernel::OM->Get('Automation');
 
-#
-# Job tests
-#
-
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 my $NameRandom  = $Helper->GetRandomID();
 my %JobIDByJobName = (
@@ -60,6 +54,7 @@ for my $JobName ( sort keys %JobIDByJobName ) {
         Type    => 'Ticket',
         ValidID => 1,
         UserID  => 1,
+        Silent  => 1,
     );
 
     $Self->False(
@@ -153,6 +148,7 @@ $JobID1 = $AutomationObject->JobAdd(
     Type    => 'Ticket',
     ValidID => 1,
     UserID  => 1,
+    Silent  => 1,
 );
 
 $Self->False(
@@ -179,6 +175,7 @@ my $JobUpdateWrong = $AutomationObject->JobUpdate(
     Name    => $ChangedJobName,
     ValidID => 2,
     UserID  => 1,
+    Silent  => 1,
 );
 
 $Self->False(
@@ -199,8 +196,9 @@ $Self->True(
 
 # delete a non existent job
 $JobDelete = $AutomationObject->JobDelete(
-    ID      => 9999,
-    UserID  => 1,
+    ID     => 9999,
+    UserID => 1,
+    Silent => 1,
 );
 
 $Self->False(
@@ -233,11 +231,17 @@ my %Job = $AutomationObject->JobGet(
 
 $Self->IsDeeply(
     $Job{Filter},
-    {
-        AND => [
-            { Field => 'Dummy', Operator => 'EQ', Value => 'this is a test' }
-        ]
-    },
+    [
+        {
+            AND => [
+                {
+                    Field    => 'Dummy',
+                    Operator => 'EQ',
+                    Value    => 'this is a test'
+                }
+            ]
+        }
+    ],
     'JobGet() for new job with filter',
 );
 
@@ -334,11 +338,127 @@ $Self->IsDeeply(
     'JobMacroList() for new job with macro assignment',
 );
 
-# cleanup is done by RestoreDatabase
+# some additional filter tests
+# create a job with valid filter
+my $JobID = $AutomationObject->JobAdd(
+    Name    => 'job-with-valid filter-'.$NameRandom,
+    Type    => 'Ticket',
+    Filter  => {
+        AND => [
+            { Field => 'Dummy', Operator => 'EQ', Value => 'this is a test' }
+        ]
+    },
+    ValidID => 1,
+    UserID  => 1
+);
+$Self->True(
+    $JobID,
+    'JobAdd() for new job with valid filter',
+);
+my %Job = $AutomationObject->JobGet(
+    ID => $JobID
+);
+$Self->IsDeeply(
+    $Job{Filter},
+    [
+        {
+            AND => [
+                {
+                    Field    => 'Dummy',
+                    Operator => 'EQ',
+                    Value    => 'this is a test'
+                }
+            ]
+        }
+    ],
+    'JobGet() for new job with valid filter',
+);
+# set empty filter
+my $Result = $AutomationObject->JobUpdate(
+    ID => $JobID,
+    %Job,
+    Filter  => [],
+    UserID  => 1,
+);
+$Self->True(
+    $JobID,
+    'JobAdd() for new job with valid filter',
+);
+my %Job = $AutomationObject->JobGet(
+    ID => $JobID
+);
+$Self->IsDeeply(
+    $Job{Filter},
+    [],
+    'JobGet() for upddated job with valid (now empty) filter',
+);
+# create a job with empty filter
+my $JobID = $AutomationObject->JobAdd(
+    Name    => 'job-with-empty filter-'.$NameRandom,
+    Type    => 'Ticket',
+    Filter  => [],
+    ValidID => 1,
+    UserID  => 1
+);
+$Self->True(
+    $JobID,
+    'JobAdd() for new job with empty filter',
+);
+my %Job = $AutomationObject->JobGet(
+    ID => $JobID
+);
+$Self->IsDeeply(
+    $Job{Filter},
+    [],
+    'JobGet() for new job with empty filter',
+);
+# create a job with filter list
+my $JobID = $AutomationObject->JobAdd(
+    Name    => 'job-with-list filter-'.$NameRandom,
+    Type    => 'Ticket',
+    Filter  => [
+        {
+            AND => [
+                { Field => 'Dummy', Operator => 'EQ', Value => 'this is a test' }
+            ]
+        },
+        {
+            AND => [
+                { Field => 'Dummy2', Operator => 'EQ', Value => 'this is a test 2' }
+            ]
+        }
+    ],
+    ValidID => 1,
+    UserID  => 1
+);
+$Self->True(
+    $JobID,
+    'JobAdd() for new job with filter list',
+);
+my %Job = $AutomationObject->JobGet(
+    ID => $JobID
+);
+$Self->IsDeeply(
+    $Job{Filter},
+    [
+        {
+            AND => [
+                { Field => 'Dummy', Operator => 'EQ', Value => 'this is a test' }
+            ]
+        },
+        {
+            AND => [
+                { Field => 'Dummy2', Operator => 'EQ', Value => 'this is a test 2' }
+            ]
+        }
+    ],
+    'JobGet() for new job with filter list',
+);
+
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
-
-
 
 =back
 

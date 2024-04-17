@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -104,7 +104,6 @@ one or more ticket entries in one call.
                     TypeID             => 123,
                     Responsible        => 'some_responsible_login',
                     ResponsibleID      => 123,
-                    Age                => 3456,
                     Created            => '2010-10-27 20:15:00'
                     CreateTimeUnix     => '1231414141',
                     CreateBy           => 123,
@@ -338,33 +337,43 @@ sub _GetTicketData {
     }
 
     # add unseen information
-    my $Exists = $TicketObject->TicketUserFlagExists(
-        TicketID => $TicketID,
-        Flag     => 'Seen',
-        Value    => 1,
-        UserID   => $Self->{Authorization}->{UserID},
-    );
-    $TicketData{Unseen} = $Exists ? 0 : 1;
+    if ( $Param{Data}->{include}->{Unseen} ) {
+        my $Exists = $TicketObject->TicketUserFlagExists(
+            TicketID => $TicketID,
+            Flag     => 'Seen',
+            Value    => 1,
+            UserID   => $Self->{Authorization}->{UserID},
+        );
+        $TicketData{Unseen} = $Exists ? 0 : 1;
+    }
 
     # add watcher info
-    my $WatcherID = $Kernel::OM->Get('Watcher')->WatcherLookup(
-        Object      => 'Ticket',
-        ObjectID    => $TicketID,
-        WatchUserID => $Self->{Authorization}->{UserID},
-    );
-    if ( $WatcherID ) {
-        $TicketData{WatcherID} = $WatcherID;
+    if ( $Param{Data}->{include}->{WatcherID} ) {
+        my $WatcherID = $Kernel::OM->Get('Watcher')->WatcherLookup(
+            Object      => 'Ticket',
+            ObjectID    => $TicketID,
+            WatchUserID => $Self->{Authorization}->{UserID},
+        );
+        $TicketData{WatcherID} = $WatcherID || undef;
     }
 
     # add link count
-    $TicketData{LinkCount} = 0 + $Kernel::OM->Get('LinkObject')->LinkCount(
-        Object => 'Ticket',
-        Key    => $TicketID
-    );
+    if ( $Param{Data}->{include}->{LinkCount} ) {
+        $TicketData{LinkCount} = 0 + $Kernel::OM->Get('LinkObject')->LinkCount(
+            Object => 'Ticket',
+            Key    => $TicketID
+        );
+    }
 
     #FIXME: workaround KIX2018-3308
-    $TicketData{ContactID}      = "" . $TicketData{ContactID};
-    $TicketData{OrganisationID} = "" . $TicketData{OrganisationID};
+    if ($TicketData{ContactID}) {
+        $TicketData{ContactID}      = "" . $TicketData{ContactID};
+    }
+    if ($TicketData{OrganisationID}) {
+        $TicketData{OrganisationID} = "" . $TicketData{OrganisationID};
+    }
+
+    delete $TicketData{Age};
 
     return \%TicketData;
 }

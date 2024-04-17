@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -72,7 +72,7 @@ sub Connect {
     # authentication
     my $Auth = $IMAPObject->login( $Param{Login}, $Param{Password} );
     if ( !defined $Auth ) {
-        $IMAPObject->quit();
+        $IMAPObject->quit(1);
         return (
             Successful => 0,
             Message    => "$Type: Auth for user $Param{Login}/$Param{Host} failed!"
@@ -102,7 +102,7 @@ sub _Fetch {
     my ( $Self, %Param ) = @_;
 
     # check needed stuff
-    for (qw(Login Password Host Trusted QueueID)) {
+    for (qw(Login Password Host Trusted)) {
         if ( !defined $Param{$_} ) {
             $Kernel::OM->Get('Log')->Log(
                 Priority => 'error',
@@ -262,7 +262,7 @@ sub _Fetch {
         );
     }
     $IMAPObject->expunge_mailbox($IMAPFolder);
-    $IMAPObject->quit();
+    $IMAPObject->quit(1);
     if ($CMD) {
         print "$AuthType: Connection to $Param{Host} closed.\n\n";
     }

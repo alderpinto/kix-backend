@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -21,6 +21,7 @@ our @ObjectDependencies = (
     'Config',
     'Encode',
     'Log',
+    'Role',
     'User',
 );
 
@@ -161,51 +162,18 @@ sub Sync {
     my $ConfigObject = $Kernel::OM->Get('Config');
     my $ContactObject = $Kernel::OM->Get('Contact');
     my $OrganisationObject = $Kernel::OM->Get('Organisation');
-
-    my $ContactID;
-
-    # get current user id
-    my $UserID = $UserObject->UserLookup(
-        UserLogin => $Param{User},
-        Silent    => 1,
-    );
-
-    if ( !$UserID ) {
-        # create user
-        $UserID = $UserObject->UserAdd(
-            UserLogin    => $Param{User},
-            ValidID      => 1,
-            ChangeUserID => 1,
-        );
-        if ( !$UserID ) {
-            $Kernel::OM->Get('Log')->Log(
-                Priority => 'error',
-                Message  => "Can't create user \"$Param{User}\" ($UserDN) in RDBMS!",
-            );
-
-            # take down session
-            $LDAP->unbind();
-            return;
-        }
-
-        $Kernel::OM->Get('Log')->Log(
-            LogPrefix => 'Kernel::System::Auth::Sync::LDAP',
-            Priority  => 'notice',
-            Message   => "Local user for ldap user \"$Param{User}\" ($UserDN) created in RDBMS.",
-        );
-    }
-
-    # variable to store role permissions from ldap
-    my %RolesFromLDAP;
-
-    # get RoleObject
     my $RoleObject = $Kernel::OM->Get('Role');
 
     # get system roles and create lookup
     my %SystemRoles = $RoleObject->RoleList(Valid => 1);
     my %SystemRolesByName = reverse %SystemRoles;
 
-    my %UserContextFromLDAP;
+    my $UserID = $UserObject->UserLookup(
+        UserLogin => $Param{User},
+        Silent    => 1,
+    );
+
+    my $ContactID;
 
     # sync contact from ldap
     my %SyncContact;
@@ -218,16 +186,16 @@ sub Sync {
             ATTRIBUTE_KEY:
             for my $Key ( sort keys %{$Self->{ContactUserSync}} ) {
 
-                my @ValueArr = qw{};
-                my $Value = "";
+                my @KeyValues = ();
+                my $Value     = "";
                 my $AttributeNames = $Self->{ContactUserSync}->{$Key};
                 if ( ref $AttributeNames ne 'ARRAY' ) {
                     $AttributeNames = [$AttributeNames];
                 }
 
-
-              ATTRIBUTE_NAME:
+                ATTRIBUTE_NAME:
                 for my $AttributeName ( @{$AttributeNames} ) {
+                    my @AttributeValues = ();
                     # set a fixed value...
                     if ( $AttributeName =~ /^SET:/i ) {
                         $Value = substr( $AttributeName, 4 );
@@ -245,10 +213,26 @@ sub Sync {
                             $Value =~s/\{(.+?)\}/$ValuePart/;
                         }
                     }
+                    # set a value concatenation of multiple attributes with joined values of array attributes
+                    # LDAP attributes are marked with curly brackets
+                    # join separator is written in square brackets after ARRAYJOIN
+                    elsif ( $AttributeName =~ /^ARRAYJOIN\[(.+)\]\:(.+)$/i ) {
+                        my $SepStrg = $1;
+                        $Value      = $2;
+                        $Value      =~ s/^\s+|\s+$//g;
+                        while ( $Value =~ /\{(.+?)\}/) {
+                            $AttributeName = $1;
+                            my @ValuePartArray = $Entry->get_value($AttributeName);
+                            my $ValuePart = join( $SepStrg, @ValuePartArray ) || '';
+                            $ValuePart =~ s/^\s+|\s+$//g;
+                            $Value =~s/\{(.+?)\}/$ValuePart/;
+                        }
+                    }
                     # just set the attribute...
                     elsif ( $Entry->get_value($AttributeName) ) {
-                        $Value = $Entry->get_value($AttributeName);
-                        $Value =~ s/^\s+|\s+$//g;
+                        @AttributeValues = $Entry->get_value($AttributeName);
+                        $Value           = $Entry->get_value($AttributeName);
+                        $Value           =~ s/^\s+|\s+$//g;
                     }
                     # set empty if no value can be retrieved or the attribute is not available..
                     else {
@@ -256,7 +240,37 @@ sub Sync {
                     }
 
                     # ensure proper encoding, i.e. utf-8
-                    $Value = $Self->_ConvertFrom( $Value, 'utf-8', );
+                    $Value = $Self->_ConvertFrom( $Value, 'utf-8' );
+
+                    # "special treatment"
+                    # if there's multiple mail values, automatically set Email, Email1..5
+                    if (
+                        $Key eq 'Email'
+                        && scalar( @AttributeValues ) > 1
+                    ) {
+                        # init counter
+                        my $Counter = 0;
+                        EMAIL:
+                        for my $CurrEmail ( @AttributeValues ) {
+                            # prepare value
+                            $CurrEmail =~ s/^\s+|\s+$//g;
+                            $CurrEmail = $Self->_ConvertFrom( $CurrEmail, 'utf-8' );
+
+                            # skip empty entries
+                            next EMAIL if ( !$CurrEmail );
+
+                            if( $Counter == 0) {
+                                $SyncContact{'Email'} = $CurrEmail;
+                            } 
+                            else {
+                                $SyncContact{ 'Email' . $Counter } = $CurrEmail;
+                            } 
+
+                            # increment counter
+                            $Counter++;
+                        }
+                        last ATTRIBUTE_NAME;
+                    }
 
                     # "special treatment"
                     # do we have to look up organisation id?
@@ -286,7 +300,7 @@ sub Sync {
                     # enforce array structure for attribute OrganisationIDs...
                     # (NOTE: that might work for array DFs one day)
                     if ( $Key eq "OrganisationIDs" ) {
-                        push(@ValueArr, $Value);
+                        push( @KeyValues, $Value );
                         last ATTRIBUTE_NAME if ( ref($Self->{ContactUserSync}->{$Key}) ne 'ARRAY' );
                     }
                     else {
@@ -296,8 +310,11 @@ sub Sync {
                 }
 
                 # NOTE this is already OR because it might work for array DFs one day
-                if ( $Key eq "OrganisationIDs" || ref($Self->{ContactUserSync}->{$Key}) eq 'ARRAY' ) {
-                    $SyncContact{$Key} = \@ValueArr;
+                if (
+                    $Key eq "OrganisationIDs"
+                    || ref( $Self->{ContactUserSync}->{ $Key } ) eq 'ARRAY'
+                ) {
+                    $SyncContact{$Key} = \@KeyValues;
                 }
 
             }
@@ -307,9 +324,8 @@ sub Sync {
         if ( IsHashRefWithData(\%SyncContact) ) {
             # set fallback org id if necessary
             $SyncContact{PrimaryOrganisationID} = $SyncContact{PrimaryOrganisationID} || $Self->{UnknownOrgIDFallback} || 1;
-            my %ContactData;
-            # lookup the contact
 
+            # lookup the contact
             if ( $SyncContact{Email} && $Self->{EmailUniqueCheck} ) {
                 $ContactID = $ContactObject->ContactLookup(
                     Email  => $SyncContact{Email},
@@ -323,12 +339,18 @@ sub Sync {
                 );
             }
 
-            %ContactData = $ContactObject->ContactGet(
-                ID => $ContactID,
-            );
+            my %ContactData;
+            if ( $ContactID ) {
+                %ContactData = $ContactObject->ContactGet(
+                    ID => $ContactID,
+                );
+            }
 
-            # check if the contact is assigned to another user
-            if ( $ContactData{AssignedUserID} && $ContactData{AssignedUserID} != $UserID ) {
+            # if the UserLogin was changed, we cannot find the user by UserLogin. We had to look the user up by email.
+            # this only works with enabled EmailUniqueCheck!
+            $UserID = $SyncContact{UserLogin} && !$UserID && $ContactData{AssignedUserID} ? $ContactData{AssignedUserID} : $UserID;
+
+            if ($ContactData{AssignedUserID} && $UserID && $ContactData{AssignedUserID} != $UserID) {
                 $Kernel::OM->Get('Log')->Log(
                     LogPrefix => 'Kernel::System::Auth::Sync::LDAP',
                     Priority  => 'error',
@@ -366,11 +388,10 @@ sub Sync {
             else {
                 # update existing contact
 
-                # get user data
-                %ContactData = $ContactObject->ContactGet(
-                    UserID => $UserID,
-                );
                 $ContactID = $ContactData{ID};
+
+                # synced contacts are always valid
+                $SyncContact{ValidID} = 1;
 
                 # check for changes on contact
                 my $AttributeChange = 0;
@@ -444,6 +465,7 @@ sub Sync {
     }
 
     # GroupDN based role sync...
+    my %RolesFromLDAP;
     if ( IsHashRefWithData($Self->{GroupDNBasedRoleSync}) ) {
 
         # read and remember roles from ldap
@@ -573,7 +595,7 @@ sub Sync {
         }
     }
 
-
+    my %UserContextFromLDAP;
     # GroupDN based usage context sync...
     if ( IsHashRefWithData($Self->{GroupDNBasedUsageContextSync}) ) {
 
@@ -661,19 +683,75 @@ sub Sync {
         }
     }
 
-    # set user context in DB
-    my %User = $UserObject->GetUserData(
-        UserID => $UserID
-    );
+    if (!$UserID) {
+        # create user
+        $UserID = $UserObject->UserAdd(
+            UserLogin    => $Param{User},
+            ValidID      => 1,
+            ChangeUserID => 1,
+        );
+        if (!$UserID) {
+            $Kernel::OM->Get('Log')->Log(
+                Priority => 'error',
+                Message  => "Can't create user \"$Param{User}\" ($UserDN) in RDBMS!",
+            );
+
+            # take down session
+            $LDAP->unbind();
+            return;
+        }
+
+        # assign user to contact
+        if ( $ContactID ) {
+            my %ContactData = $ContactObject->ContactGet(
+                ID => $ContactID,
+            );
+            my $Result = $ContactObject->ContactUpdate(
+                %ContactData,
+                ID             => $ContactID,
+                AssignedUserID => $UserID,
+                UserID         => 1
+            );
+            if ( !$Result ) {
+                $Kernel::OM->Get('Log')->Log(
+                    LogPrefix => 'Kernel::System::Auth::Sync::LDAP',
+                    Priority  => 'error',
+                    Message   => "Unable to assign contact to user \"$Param{User}\" ($UserDN)!",
+                );
+            }
+            else {
+                $Kernel::OM->Get('Log')->Log(
+                    LogPrefix => 'Kernel::System::Auth::Sync::LDAP',
+                    Priority  => 'notice',
+                    Message   => "Assigned contact to user \"$Param{User}\" ($UserDN) in RDBMS.",
+                );
+            }
+        }
+
+        $Kernel::OM->Get('Log')->Log(
+            LogPrefix => 'Kernel::System::Auth::Sync::LDAP',
+            Priority  => 'notice',
+            Message   => "Local user for ldap user \"$Param{User}\" ($UserDN) created in RDBMS.",
+        );
+    }
 
     # IsCustomer/IsAgent in UserSyncMap always overwrites all other context modifications
-    $UserContextFromLDAP{IsCustomer} = $SyncContact{IsCustomer} if ( exists($SyncContact{IsCustomer}) );
-    $UserContextFromLDAP{IsAgent} = $SyncContact{IsAgent} if ( exists($SyncContact{IsAgent}) );
+    $UserContextFromLDAP{IsCustomer} = $SyncContact{IsCustomer} if (exists($SyncContact{IsCustomer}));
+    $UserContextFromLDAP{IsAgent} = $SyncContact{IsAgent} if (exists($SyncContact{IsAgent}));
+
+    # set user context in DB
+    my %User = $UserObject->GetUserData(
+        UserID => $UserID,
+        Silent => 1
+    );
 
     if ( %User ) {
+        # remove UserPw to avoid overwrite
+        $User{UserPw} = undef if defined $User{UserPw};
 
-    # remove UserPw to avoid overwrite
-    $User{UserPw} = undef if defined $User{UserPw};
+        # set UserLogin from LDAP
+        # (at this point, user was either successfully identified by email or newly created )
+        $User{UserLogin} = $SyncContact{UserLogin}  ? $SyncContact{UserLogin} : $User{UserLogin};
 
         my $Success = $UserObject->UserUpdate(
             %User,
@@ -712,7 +790,7 @@ sub Sync {
         }
 
         ROLEID:
-        foreach my $RoleID ( sort keys %RolesFromLDAP ) {
+        foreach my $RoleID ( sort( keys( %RolesFromLDAP ) ) ) {
             next ROLEID if !$RolesFromLDAP{$RoleID};
 
             $Kernel::OM->Get('Log')->Log(

@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -47,41 +47,60 @@ sub _Replace {
     }
 
     my $Tag = $Self->{Start} . 'KIX_CONFIG_';
+
+    return $Param{Text} if ($Param{Text} !~ m/$Tag/);
+
     my $SysConfigObject = $Kernel::OM->Get('SysConfig');
 
     $Param{Text} =~ s{$Tag(.+?)$Self->{End}}{
         my $Replace = '';
+        my $FullKey = $1;
         my $Key = $1;
+        if ($FullKey =~ /(.+?)_.+/) {
+            $Key = $1;
+        }
 
         my $Exists = $SysConfigObject->Exists(
             Name => $Key
         );
-
+        if (
+            !$Exists
+            && $Key ne $FullKey
+        ) {
+            $Exists = $SysConfigObject->Exists(
+                Name => $FullKey
+            );
+        }
         if ($Exists) {
             my %ConfigDefinition = $SysConfigObject->OptionGet(
                 Name => $Key,
             );
-            if ($Kernel::OM->{Authorization}->{UserType} && $ConfigDefinition{AccessLevel} &&
+            if (
+                $ConfigDefinition{AccessLevel} &&
                 (
-                    ($Kernel::OM->{Authorization}->{UserType} eq 'Agent' && $ConfigDefinition{AccessLevel} eq 'internal')
-                        || $ConfigDefinition{AccessLevel} eq 'external'
-                        || $ConfigDefinition{AccessLevel} eq 'public'
+                    $ConfigDefinition{AccessLevel} eq 'external' ||
+                    $ConfigDefinition{AccessLevel} eq 'public' ||
+                    (
+                        $Kernel::OM->{Authorization}->{UserType} &&
+                        $Kernel::OM->{Authorization}->{UserType} eq 'Agent' &&
+                        $ConfigDefinition{AccessLevel} eq 'internal'
+                    )
                 )
             ) {
                 $Replace = $Self->_GetReplaceValue(
-                    Key             => $Key,
+                    Key             => $FullKey,
                     ReplaceNotFound => $Param{ReplaceNotFound}
                 );
             }
             else {
                 $Replace = $Param{UserID} == 1 ?
-                    $Replace = $Self->_GetReplaceValue(Key => $Key, ReplaceNotFound => $Param{ReplaceNotFound})
+                    $Replace = $Self->_GetReplaceValue(Key => $FullKey, ReplaceNotFound => $Param{ReplaceNotFound})
                     : $Param{ReplaceNotFound};
             }
         }
 
         if ( !$Exists && $Param{UserID} == 1 ) {
-            $Replace = $Self->_GetReplaceValue(Key => $Key, ReplaceNotFound => $Param{ReplaceNotFound});
+            $Replace = $Self->_GetReplaceValue(Key => $FullKey, ReplaceNotFound => $Param{ReplaceNotFound});
         }
 
         $Replace;

@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2023 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -16,6 +16,8 @@ use base qw(
 );
 
 our $ObjectManagerDisabled = 1;
+
+use Kernel::System::VariableCheck qw(:all);
 
 sub Run {
     my ($Self, %Param) = @_;
@@ -38,6 +40,20 @@ sub Run {
             Data => $Block
         );
 
+        if ( IsArrayRefWithData($Block->{Style}->{Class}) ) {
+            for my $Style ( @{$Block->{Style}->{Class}} ) {
+                next if ( !$Style->{Selector} || !$Style->{CSS} );
+
+                $LayoutObject->Block(
+                    Name => 'StyleClass',
+                    Data => {
+                        %{$Block},
+                        %{$Style}
+                    }
+                );
+            }
+        }
+
         $Css = $LayoutObject->Output(
             TemplateFile => 'HTMLToPDF/Richtext',
         );
@@ -47,15 +63,23 @@ sub Run {
     if ( ref $Block->{Value} eq 'ARRAY' ) {
         my @Values;
         for my $Entry ( @{$Param{Data}->{Value}} ) {
+            my %Result = $Self->_ReplacePlaceholders(
+                String    => $Entry,
+                UserID    => $Param{UserID},
+                Count     => $Param{Count},
+                Translate => $Block->{Translate},
+                Object    => $Param{Object},
+                Datas     => $Datas
+            );
+
             my $TmpValue = $TemplateGeneratorObject->ReplacePlaceHolder(
-                Text     => $Entry,
+                Text     => $Result{Text},
                 $IDKey   => $Param{$IDKey},
                 Data     => {},
                 UserID   => $Param{UserID},
                 RichText => 1
             );
 
-            $TmpValue =~ s/<\/?div[^>]*>//gsmx;
             $TmpValue =~ s{<p>(<img\salt=""\ssrc=".*\"\s\/>)<\/p>}{$1}gsmx;
 
             if ( $Block->{Translate} ) {
@@ -67,15 +91,23 @@ sub Run {
         $Value = join( ($Block->{Join} // q{ }), @Values);
     }
     else {
+        my %Result = $Self->_ReplacePlaceholders(
+            String    => $Block->{Value},
+            UserID    => $Param{UserID},
+            Count     => $Param{Count},
+            Translate => $Block->{Translate},
+            Object    => $Param{Object},
+            Datas     => $Datas
+        );
+
         $Value = $TemplateGeneratorObject->ReplacePlaceHolder(
-            Text     => $Block->{Value},
+            Text     => $Result{Text},
             $IDKey   => $Param{$IDKey},
             Data     => {},
             UserID   => $Param{UserID},
             RichText => 1
         );
 
-        $Value =~ s/<\/?div[^>]*>//gsmx;
         $Value =~ s{<p>(<img\salt=""\ssrc=".*\"\s\/>)<\/p>}{$1}gsmx;
     }
 

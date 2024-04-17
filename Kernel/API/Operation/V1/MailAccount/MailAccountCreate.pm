@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -83,8 +83,9 @@ sub ParameterDefinition {
         'MailAccount::DispatchingBy' => {
             Required => 1,
             OneOf    => [
-                'Queue',
-                'From'
+                'PostmasterDefaultQueue',
+                'From',
+                'Queue'
             ]
         },
         'MailAccount::Trusted' => {
@@ -111,7 +112,7 @@ perform MailAccountCreate Operation. This will return the created MailAccountID.
                 IMAPFolder    => 'Some Folder',     # optional, only valid for IMAP-type accounts
                 ValidID       => 1,
                 Trusted       => 0,
-                DispatchingBy => 'Queue',           # Queue|From
+                DispatchingBy => 'Queue',           # PostmasterDefaultQueue|From|Queue
                 Comment       => '...',             # optional
                 QueueID       => 12,
             },

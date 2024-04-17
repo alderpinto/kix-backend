@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -19,11 +19,6 @@ my $DBObject  = $Kernel::OM->Get('DB');
 my $XMLObject = $Kernel::OM->Get('XML');
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 # define needed variable
@@ -186,8 +181,6 @@ for my $SQL (@SQL) {
         "Do() DROP TABLE ($SQL)",
     );
 }
-
-# cleanup cache is done by RestoreDatabase.
 
 1;
 

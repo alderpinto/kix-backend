@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -17,16 +17,7 @@ use vars (qw($Self));
 # get ReportDefinition object
 my $ReportingObject = $Kernel::OM->Get('Reporting');
 
-#
-# log tests
-#
-
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 my $Home = $Kernel::OM->Get('Config')->Get('Home');
@@ -51,12 +42,14 @@ my @ConfigTests = (
     {
         Test   => 'no config',
         Config => undef,
-        Expect => undef
+        Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'empty config',
         Config => {},
         Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'wrong config - SQL missing',
@@ -64,6 +57,7 @@ my @ConfigTests = (
             dummy => 'test'
         },
         Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'invalid SQL option (not a hash)',
@@ -71,6 +65,7 @@ my @ConfigTests = (
             SQL => 'from test'
         },
         Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'invalid SQL - unsupported DBMS',
@@ -80,6 +75,7 @@ my @ConfigTests = (
             }
         },
         Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'wrong SQL (no SELECT)',
@@ -89,6 +85,7 @@ my @ConfigTests = (
             }
         },
         Expect => undef,
+        Silent => 1,
     },
     {
         Test   => 'valid SQL with wildcard column list',
@@ -233,7 +230,8 @@ foreach my $Test ( @ConfigTests ) {
         Source => 'GenericSQL',
         Config => {
             DataSource => $Test->{Config}
-        }
+        },
+        Silent => $Test->{Silent},
     );
 
     if ( ! ref $Test->{Expect} ) {
@@ -555,8 +553,6 @@ $Self->True(
     $Success,
     'Remove Plugin Directory',
 );
-
-# cleanup is done by RestoreDatabase
 
 1;
 

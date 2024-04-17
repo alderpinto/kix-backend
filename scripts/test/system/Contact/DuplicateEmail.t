@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -13,12 +13,10 @@ use utf8;
 use vars (qw($Self));
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # get customer user object
 my $ContactObject = $Kernel::OM->Get('Contact');
@@ -100,8 +98,9 @@ my $ContactID = $ContactObject->ContactAdd(
         $OrgID
     ],
     Password   => 'some_pass',
-    ValidID        => 1,
-    UserID         => 1,
+    ValidID    => 1,
+    UserID     => 1,
+    Silent     => 1,
 );
 
 $Self->False(
@@ -119,6 +118,7 @@ my $Update = $ContactObject->ContactUpdate(
     ID     => $CustomerData{ID},
     Email  => $Customer1Email,
     UserID => 1,
+    Silent => 1,
 );
 
 $Self->False(
@@ -126,7 +126,8 @@ $Self->False(
     "ContactUpdate() - not possible for duplicate email address",
 );
 
-# cleanup is done by RestoreDatabase
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

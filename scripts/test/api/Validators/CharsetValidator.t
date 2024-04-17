@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -18,11 +18,6 @@ use Kernel::API::Validator::CharsetValidator;
 my $ValidatorObject = Kernel::API::Validator::CharsetValidator->new();
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 my $ValidData = {
@@ -49,7 +44,7 @@ $Self->True(
 );
 
 # validate valid Charset alias
-my $Result = $ValidatorObject->Validate(
+$Result = $ValidatorObject->Validate(
     Attribute => 'Charset',
     Data      => $ValidDataAlias,
 );
@@ -80,8 +75,6 @@ $Self->False(
     $Result->{Success},
     'Validate() - invalid attribute',
 );
-
-# cleanup is done by RestoreDatabase.
 
 1;
 

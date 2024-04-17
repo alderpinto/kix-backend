@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2019 OTRS AG, https://otrs.com/
 # --
@@ -92,8 +92,7 @@ sub _InstallKIXExtensions {
 
                 my $TemplateName = $stash->get('template')->{name} // '';
                 $TemplateName = substr( $TemplateName, 0, -3 );    # remove .tt extension
-                my $GenerateBlockHook =
-                    $Context->{LayoutObject}->{_BlockHookSubscriptions}->{$TemplateName}->{$BlockName};
+                my $GenerateBlockHook = $Context->{LayoutObject}->{_BlockHookSubscriptions}->{$TemplateName}->{$BlockName};
 
                 for my $TargetBlock ( @{ $ParentBlock->{Children}->{$BlockName} } ) {
                     $output .= "<!--HookStart${BlockName}-->\n" if $GenerateBlockHook;

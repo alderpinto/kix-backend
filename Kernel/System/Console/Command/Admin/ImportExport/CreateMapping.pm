@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -186,8 +186,8 @@ sub Run {
             ColumnSeparator                 => $CurrMapping->{"ColumnSeparator"} || 'Semicolon',
             IncludeColumnHeaders            => $CurrMapping->{"IncludeColumnHeaders"} || '1',
             DefaultName                     => $CurrMapping->{"DefaultName"} || '',
-            DefaultIncidentState            => $CurrMapping->{"DefaultDeploymentStateID"} || $InciStateID,
-            DefaultDeploymentState          => $CurrMapping->{"DefaultIncidentStateID"} || $DeplStateID,
+            DefaultIncidentState            => $CurrMapping->{"DefaultIncidentStateID"} || $InciStateID,
+            DefaultDeploymentState          => $CurrMapping->{"DefaultDeploymentStateID"} || $DeplStateID,
         );
 
         # create mapping template...

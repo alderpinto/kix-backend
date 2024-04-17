@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -65,41 +65,6 @@ sub XMLValueLookup {
     return $Value;
 }
 
-=item XMLStatsAttributeCreate()
-
-create a attribute array for the stats framework
-
-    my $Value = $ConfigItemObject->XMLStatsAttributeCreate(
-        Item => $ItemRef,
-    );
-
-=cut
-
-sub XMLStatsAttributeCreate {
-    my ( $Self, %Param ) = @_;
-
-    # check needed stuff
-    if ( !$Param{Item} ) {
-        $Kernel::OM->Get('Log')->Log(
-            Priority => 'error',
-            Message  => 'Need Item!',
-        );
-        return;
-    }
-
-    # load backend
-    my $BackendObject = $Kernel::OM->Get(
-        'ITSMConfigItem::XML::Type::' . $Param{Item}->{Input}->{Type}
-    );
-
-    return if !$BackendObject;
-
-    # create stats attribute array
-    my $Attribute = $BackendObject->StatsAttributeCreate(%Param);
-
-    return $Attribute;
-}
-
 =item XMLExportSearchValuePrepare()
 
 prepare xml search data for export
@@ -152,6 +117,7 @@ sub XMLExportValuePrepare {
 
     # check needed stuff
     if ( !$Param{Item} || ( $Param{Item} && ref $Param{Item} ne 'HASH' ) ) {
+        return if $Param{Silent};
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => 'Need Item!',
@@ -224,6 +190,7 @@ sub XMLImportValuePrepare {
 
     # check needed stuff
     if ( !$Param{Item} || ref $Param{Item} ne 'HASH' ) {
+        return if $Param{Silent};
         $Kernel::OM->Get('Log')->Log(
             Priority => 'error',
             Message  => 'Need Item!',
@@ -445,6 +412,9 @@ sub _XMLVersionAdd {
     $Kernel::OM->Get('Cache')->CleanUp(
         Type => $Self->{CacheType},
     );
+    $Kernel::OM->Get('Cache')->CleanUp(
+        Type => $Self->{OSCacheType},
+    );
 
     return $XMLID if !$MoveVersion;
 
@@ -506,6 +476,9 @@ sub _XMLVersionDelete {
     # clear cache
     $Kernel::OM->Get('Cache')->CleanUp(
         Type => $Self->{CacheType},
+    );
+    $Kernel::OM->Get('Cache')->CleanUp(
+        Type => $Self->{OSCacheType},
     );
 
     return 1;

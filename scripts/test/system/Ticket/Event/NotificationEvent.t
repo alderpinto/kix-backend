@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -18,23 +18,17 @@ use Kernel::System::VariableCheck qw(:all);
 
 use vars (qw($Self));
 
-# get config object
-my $ConfigObject = $Kernel::OM->Get('Config');
-
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # disable rich text editor
 my $Success = $Helper->ConfigSettingChange(
     Key   => 'Frontend::RichText',
     Value => 0,
 );
-
 $Self->True(
     $Success,
     "Disable RichText with true",
@@ -45,7 +39,6 @@ $Success = $Helper->ConfigSettingChange(
     Key   => 'SendmailModule',
     Value => 'Kernel::System::Email::Test',
 );
-
 $Self->True(
     $Success,
     "Set Email Test backend with true",
@@ -56,7 +49,6 @@ $Success = $Helper->ConfigSettingChange(
     Key   => 'DefaultLanguage',
     Value => 'en',
 );
-
 $Self->True(
     $Success,
     "Set default language to English",
@@ -67,10 +59,20 @@ $Success = $Helper->ConfigSettingChange(
     Key   => 'AgentSelfNotifyOnAction',
     Value => 0,
 );
-
 $Self->True(
     $Success,
     "Disable Agent Self Notify On Action",
+);
+
+# disable async notifications
+$Success = $Helper->ConfigSettingChange(
+    Key   => 'TicketNotification::SendAsynchronously',
+    Value => 0,
+);
+
+$Self->True(
+    $Success,
+    "Deactivate asynchronous notifications",
 );
 
 my $TestEmailObject = $Kernel::OM->Get('Email::Test');
@@ -88,9 +90,15 @@ $Self->IsDeeply(
 );
 
 # enable responsible
-$ConfigObject->Set(
+$Kernel::OM->Get('Config')->Set(
     Key   => 'Ticket::Responsible',
     Value => 1,
+);
+
+# disable asynchron notification
+$Kernel::OM->Get('Config')->Set(
+    Key   => 'TicketNotification::SendAsynchronously',
+    Value => 0,
 );
 
 # get a random id
@@ -105,12 +113,18 @@ my $RoleID = $Kernel::OM->Get('UnitTest::Helper')->TestRoleCreate(
                 Target => '/tickets',
                 Value  => Kernel::System::Role::Permission::PERMISSION->{READ},
             }
+        ],
+        'Base::Ticket' => [
+            {
+                Target => 1,
+                Value  => Kernel::System::Role::Permission::PERMISSION->{READ},
+            }
         ]
     }
 );
 
 # create role with DENY on tickets
-my $TicketDenyRoleID = $Kernel::OM->Get('UnitTest::Helper')->TestRoleCreate(
+my $TicketDenyRoleID = $Helper->TestRoleCreate(
     Name        => "ticket_deny_$RandomID",
     Permissions => {
         Resource => [
@@ -118,12 +132,18 @@ my $TicketDenyRoleID = $Kernel::OM->Get('UnitTest::Helper')->TestRoleCreate(
                 Target => '/tickets',
                 Value  => Kernel::System::Role::Permission::PERMISSION->{DENY},
             }
+        ],
+        'Base::Ticket' => [
+            {
+                Target => 1,
+                Value  => Kernel::System::Role::Permission::PERMISSION->{DENY},
+            }
         ]
     }
 );
 
 # create role with READ on tickets
-my $TicketReadRoleID = $Kernel::OM->Get('UnitTest::Helper')->TestRoleCreate(
+my $TicketReadRoleID = $Helper->TestRoleCreate(
     Name        => "ticket_read_$RandomID",
     Permissions => {
         Resource => [
@@ -131,12 +151,18 @@ my $TicketReadRoleID = $Kernel::OM->Get('UnitTest::Helper')->TestRoleCreate(
                 Target => '/tickets',
                 Value  => Kernel::System::Role::Permission::PERMISSION->{READ},
             }
+        ],
+        'Base::Ticket' => [
+            {
+                Target => 1,
+                Value  => Kernel::System::Role::Permission::PERMISSION->{READ},
+            }
         ]
     }
 );
 
 # create role with WRITE on tickets
-my $TicketWriteRoleID = $Kernel::OM->Get('UnitTest::Helper')->TestRoleCreate(
+my $TicketWriteRoleID = $Helper->TestRoleCreate(
     Name        => "ticket_write_$RandomID",
     Permissions => {
         Resource => [
@@ -144,27 +170,28 @@ my $TicketWriteRoleID = $Kernel::OM->Get('UnitTest::Helper')->TestRoleCreate(
                 Target => '/tickets',
                 Value  => Kernel::System::Role::Permission::PERMISSION->{UPDATE},
             }
+        ],
+        'Base::Ticket' => [
+            {
+                Target => 1,
+                Value  => Kernel::System::Role::Permission::PERMISSION->{WRITE} + Kernel::System::Role::Permission::PERMISSION->{READ},
+            }
         ]
     }
 );
-
-# get objects
-my $ContactObject = $Kernel::OM->Get('Contact');
-my $UserObject = $Kernel::OM->Get('User');
-my $OrgaObject = $Kernel::OM->Get('Organisation');
 
 # create a new user for current test
 my $UserLogin = $Helper->TestUserCreate(
     Roles => ["example-role$RandomID", "ticket_read_$RandomID", "ticket_write_$RandomID"],
 );
 
-my %UserData = $UserObject->GetUserData(
+my %UserData = $Kernel::OM->Get('User')->GetUserData(
     User => $UserLogin,
 );
 
 my $UserID = $UserData{UserID};
 
-my %UserContactData = $ContactObject->ContactGet(
+my %UserContactData = $Kernel::OM->Get('Contact')->ContactGet(
     UserID => $UserID,
 );
 
@@ -173,11 +200,11 @@ my $UserLogin2 = $Helper->TestUserCreate(
     Roles => ["ticket_deny_$RandomID"],
 );
 
-my %UserData2 = $UserObject->GetUserData(
+my %UserData2 = $Kernel::OM->Get('User')->GetUserData(
     User => $UserLogin2,
 );
 
-my %UserContactData2 = $ContactObject->ContactGet(
+my %UserContactData2 = $Kernel::OM->Get('Contact')->ContactGet(
     UserID => $UserData2{UserID},
 );
 
@@ -186,16 +213,16 @@ my $UserLogin3 = $Helper->TestUserCreate(
     Roles => ["ticket_read_$RandomID"],
 );
 
-my %UserData3 = $UserObject->GetUserData(
+my %UserData3 = $Kernel::OM->Get('User')->GetUserData(
     User => $UserLogin3,
 );
 
-my %UserContactData3 = $ContactObject->ContactGet(
+my %UserContactData3 = $Kernel::OM->Get('Contact')->ContactGet(
     UserID => $UserData3{UserID},
 );
 
 # set User3 invalid
-my $SetInvalid = $UserObject->UserUpdate(
+my $SetInvalid = $Kernel::OM->Get('User')->UserUpdate(
     %UserData3,
     ValidID      => 2,
     ChangeUserID => 1,
@@ -206,42 +233,36 @@ my $UserLogin4 = $Helper->TestUserCreate(
     Roles => ["example-role$RandomID", "ticket_read_$RandomID"]
 );
 
-my %UserContactData4 = $UserObject->GetUserData(
+my %UserContactData4 = $Kernel::OM->Get('User')->GetUserData(
     User => $UserLogin4,
 );
 
-%UserContactData4 = $ContactObject->ContactGet(
+%UserContactData4 = $Kernel::OM->Get('Contact')->ContactGet(
     UserID => $UserContactData4{UserID},
 );
 
 # create a new contact for current test
 my $ContactID = $Helper->TestContactCreate();
 
-my %Contact = $ContactObject->ContactGet(
+my %Contact = $Kernel::OM->Get('Contact')->ContactGet(
     ID => $ContactID
 );
 
 #create a new organisation for current test
-my $OrgID = $OrgaObject->OrganisationAdd(
+my $OrgID = $Kernel::OM->Get('Organisation')->OrganisationAdd(
     Name    => 'Dummy Orga',
     Number  => 'DUMMY',
     ValidID => 1,
     UserID  => 1,
 );
 
-# get queue object
-my $QueueObject = $Kernel::OM->Get('Queue');
-
 # get queue data
-my %Queue = $QueueObject->QueueGet(
+my %Queue = $Kernel::OM->Get('Queue')->QueueGet(
     ID => 1,
 );
 
-# get ticket object
-my $TicketObject = $Kernel::OM->Get('Ticket');
-
 # create ticket
-my $TicketID = $TicketObject->TicketCreate(
+my $TicketID = $Kernel::OM->Get('Ticket')->TicketCreate(
     Title          => 'Ticket One Title',
     QueueID        => 1,
     Lock           => 'unlock',
@@ -260,8 +281,12 @@ $Self->True(
     "TicketCreate() successful for Ticket ID $TicketID",
 );
 
+my %Ticket = $Kernel::OM->Get('Ticket')->TicketGet(
+    TicketID => $TicketID
+);
+
 # create article
-my $ArticleID = $TicketObject->ArticleCreate(
+my $ArticleID = $Kernel::OM->Get('Ticket')->ArticleCreate(
     TicketID      => $TicketID,
     Channel       => 'note',
     SenderType    => 'external',
@@ -273,7 +298,7 @@ my $ArticleID = $TicketObject->ArticleCreate(
     Subject       => 'article subject test',
     Body          => 'article body test',
     HistoryType   => 'NewTicket',
-    HistoryComment => '%%',
+    HistoryComment => q{%%},
     UserID        => $UserID,
 );
 
@@ -283,15 +308,39 @@ $Self->True(
     "ArticleCreate() successful for Article ID $ArticleID",
 );
 
-my $DynamicFieldObject      = $Kernel::OM->Get('DynamicField');
-my $DynamicFieldValueObject = $Kernel::OM->Get('DynamicFieldValue');
+# create article with html body
+my $HTMLArticleID = $Kernel::OM->Get('Ticket')->ArticleCreate(
+    TicketID        => $TicketID,
+    Channel         => 'note',
+    SenderType      => 'external',
+    Charset         => 'utf-8',
+    ContentType     => 'text/html',
+    CustomerVisible => 1,
+    From            => 'test@example.com',
+    To              => 'test123@example.com',
+    Subject         => 'article subject test',
+    Body            => <<'END',
+<p>...text here...</p>
+<p>this is a URL: <a href="https://kixdesk.com">KIXDesk</a></p>
+<p>...and here...</p>
+END
+    HistoryType     => 'NewTicket',
+    HistoryComment  => q{%%},
+    UserID          => $UserID,
+);
 
-# Create test ticket dynamic field of type checkbox.
-my $FieldID = $DynamicFieldObject->DynamicFieldAdd(
+# sanity check
+$Self->True(
+    $HTMLArticleID,
+    "ArticleCreate() successful for Article ID $HTMLArticleID with html body",
+);
+
+# Create test ticket dynamic field of type text.
+my $FieldID = $Kernel::OM->Get('DynamicField')->DynamicFieldAdd(
     Name       => "DFT1$RandomID",
     Label      => 'Description',
     FieldOrder => 9991,
-    FieldType  => 'Checkbox',
+    FieldType  => 'Text',
     ObjectType => 'Ticket',
     Config     => {
         DefaultValue => 1,
@@ -302,23 +351,23 @@ my $FieldID = $DynamicFieldObject->DynamicFieldAdd(
 );
 $Self->True(
     $Success,
-    "DynamicFieldAdd - Added checkbox field ($FieldID)",
+    "DynamicFieldAdd - Added Text field ($FieldID)",
 );
 
-# Set ticket dynamic field checkbox value to unchecked.
-$Success = $DynamicFieldValueObject->ValueSet(
+# Set ticket dynamic field text value to unchecked.
+$Success = $Kernel::OM->Get('DynamicFieldValue')->ValueSet(
     FieldID  => $FieldID,
     ObjectID => $TicketID,
     Value    => [
         {
-            ValueInt => 0,
+            ValueText => 0,
         },
     ],
     UserID => 1,
 );
 $Self->True(
     $Success,
-    'ValueSet - Checkbox value set to unchecked',
+    'ValueSet - Text value set to 0',
 );
 
 my $SuccessWatcher = $Kernel::OM->Get('Watcher')->WatcherAdd(
@@ -334,12 +383,29 @@ $Self->True(
     "WatcherAdd() successful for Ticket ID $TicketID",
 );
 
+# Make sure that ticket events are handled
+$Kernel::OM->ObjectsDiscard(
+    Objects => [ 'Ticket' ],
+);
+
+$Success = $TestEmailObject->CleanUp();
+$Self->True(
+    $Success,
+    'Initial cleanup',
+);
+$Self->IsDeeply(
+    $TestEmailObject->EmailsGet(),
+    [],
+    'Test backend empty after initial cleanup',
+);
+
 my @Tests = (
     {
         Name => 'Missing Event',
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Data => {
@@ -350,12 +416,14 @@ my @Tests = (
         },
         ExpectedResults => [],
         Success         => 0,
+        Silent          => 1,
     },
     {
         Name => 'Missing Data',
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event  => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
@@ -364,12 +432,14 @@ my @Tests = (
         },
         ExpectedResults => [],
         Success         => 0,
+        Silent          => 1,
     },
     {
         Name => 'Missing Config',
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
@@ -380,12 +450,14 @@ my @Tests = (
         },
         ExpectedResults => [],
         Success         => 0,
+        Silent          => 1,
     },
     {
         Name => 'Missing UserID',
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
@@ -396,12 +468,14 @@ my @Tests = (
         },
         ExpectedResults => [],
         Success         => 0,
+        Silent          => 1,
     },
     {
-        Name => 'RecipientAgent PostMasteruserID',
+        Name => 'RecipientAgent PostMasterUserID',
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -420,6 +494,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -437,6 +512,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -462,6 +538,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -482,6 +559,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -533,6 +611,7 @@ my @Tests = (
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
             VisibleForAgent => [1],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -559,6 +638,7 @@ my @Tests = (
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
             VisibleForAgent => [1],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -580,6 +660,7 @@ my @Tests = (
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
             OncePerDay      => [1],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -598,6 +679,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [ $UserData2{UserID} ],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -615,6 +697,7 @@ my @Tests = (
         Data => {
             Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             Recipients => ['AgentOwner'],
+            Transports => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -637,6 +720,7 @@ my @Tests = (
         Data => {
             Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             Recipients => ['AgentResponsible'],
+            Transports => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -659,6 +743,7 @@ my @Tests = (
         Data => {
             Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             Recipients => ['AgentWatcher'],
+            Transports => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -681,6 +766,7 @@ my @Tests = (
         Data => {
             Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             Recipients => ['AgentReadPermissions'],
+            Transports => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -707,6 +793,7 @@ my @Tests = (
         Data => {
             Events     => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             Recipients => ['AgentWritePermissions'],
+            Transports => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -729,6 +816,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [ $UserID, $UserData3{UserID} ],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -751,6 +839,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -774,6 +863,7 @@ my @Tests = (
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
             RecipientEmail  => ['test@kixexample.com'],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -800,6 +890,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -818,6 +909,7 @@ my @Tests = (
         Data => {
             Events         => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientRoles => [$RoleID],
+            Transports     => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -845,6 +937,7 @@ my @Tests = (
             Events          => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientAgents => [$UserID],
             RecipientRoles  => [$RoleID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -872,7 +965,8 @@ my @Tests = (
             Events             => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             Recipients         => ['Customer'],
             Channel            => ['email'],
-            VisibleForCustomer => [1]
+            VisibleForCustomer => [1],
+            Transports         => ['Email'],
         },
         Config => {
             Event => 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update',
@@ -895,12 +989,13 @@ my @Tests = (
         Data => {
             Events         => [ 'TicketDynamicFieldUpdate_DFT1' . $RandomID . 'Update' ],
             RecipientEmail => ['test@kixexample.com'],
+            Transports     => ['Email'],
         },
         Filter => {
             AND => [
-                # Filter by unchecked checkbox dynamic field value. Note that the search value (-1) is
+                # Filter by text dynamic field value. Note that the search value (-1) is
                 #   different than the match value (0). See bug#12257 for more information.
-                { Field => 'Ticket::DynamicField_DFT1' . $RandomID, Operator => 'EQ', Value => 0 }
+                { Field => 'DynamicField_DFT1' . $RandomID, Operator => 'EQ', Value => 0 }
             ]
         },
         Config => {
@@ -922,8 +1017,9 @@ my @Tests = (
     {
         Name => 'article subject match',
         Data => {
-            Events             => [ 'ArticleCreate' ],
-            RecipientEmail     => ['test@kixexample.com'],
+            Events         => [ 'ArticleCreate' ],
+            RecipientEmail => ['test@kixexample.com'],
+            Transports     => ['Email'],
         },
         Filter => {
             AND => [
@@ -950,8 +1046,9 @@ my @Tests = (
     {
         Name => 'article ChannelID match',
         Data => {
-            Events             => [ 'ArticleCreate' ],
-            RecipientEmail     => ['test@kixexample.com'],
+            Events         => [ 'ArticleCreate' ],
+            RecipientEmail => ['test@kixexample.com'],
+            Transports     => ['Email'],
         },
         Filter => {
             AND => [
@@ -978,9 +1075,10 @@ my @Tests = (
     {
         Name => 'create article - agent notification',
         Data => {
-            Events             => [ 'ArticleCreate' ],
-            RecipientAgents    => [$UserID],
-            CreateArticle      => [1],
+            Events          => [ 'ArticleCreate' ],
+            RecipientAgents => [$UserID],
+            CreateArticle   => [1],
+            Transports      => ['Email'],
         },
         Filter => {
             AND => [
@@ -1007,9 +1105,10 @@ my @Tests = (
     {
         Name => 'create article - customer notification',
         Data => {
-            Events             => [ 'ArticleCreate' ],
-            Recipients         => ['Customer'],
-            CreateArticle      => [1],
+            Events        => [ 'ArticleCreate' ],
+            Recipients    => ['Customer'],
+            CreateArticle => [1],
+            Transports    => ['Email'],
         },
         Filter => {
             AND => [
@@ -1036,9 +1135,10 @@ my @Tests = (
     {
         Name => 'create article - agent notification (visible for customer)',
         Data => {
-            Events             => [ 'ArticleCreate' ],
-            RecipientAgents    => [$UserID],
-            CreateArticle      => [1],
+            Events          => [ 'ArticleCreate' ],
+            RecipientAgents => [$UserID],
+            CreateArticle   => [1],
+            Transports      => ['Email'],
         },
         Filter => {
             AND => [
@@ -1066,9 +1166,10 @@ my @Tests = (
     {
         Name => 'create article - customer notification (visible for customer)',
         Data => {
-            Events             => [ 'ArticleCreate' ],
-            Recipients         => ['Customer'],
-            CreateArticle      => [1],
+            Events        => [ 'ArticleCreate' ],
+            Recipients    => ['Customer'],
+            CreateArticle => [1],
+            Transports    => ['Email'],
         },
         Filter => {
             AND => [
@@ -1099,6 +1200,7 @@ my @Tests = (
         Data => {
             Events          => [ 'TicketPriorityUpdate' ],
             RecipientAgents => [$UserID],
+            Transports      => ['Email'],
         },
         Config => {
             Event => 'TicketPriorityUpdate',
@@ -1115,18 +1217,74 @@ my @Tests = (
         ],
         Success => 1,
     },
+    {
+        Name => 'create article - plain notification with HTML article body',
+        Data => {
+            Events        => [ 'ArticleCreate' ],
+            Recipients    => ['Customer'],
+            CreateArticle => [1],
+            Transports    => ['Email'],
+        },
+        Filter => {
+            AND => [
+                { Field => 'ChannelID', Operator => 'EQ', Value => 1 },
+                { Field => 'CustomerVisible', Operator => 'EQ', Value => 1 },
+            ]
+        },
+        Config => {
+            Event => 'ArticleCreate',
+            Data  => {
+                TicketID  => $TicketID,
+                ArticleID => $HTMLArticleID
+            },
+            Config => {},
+            UserID => 1,
+        },
+        Message => {
+            en => {
+                Subject     => 'Subject = article subject',
+                Body        => "someone wrote:
+<KIX_ARTICLE_Body>",
+                ContentType => 'text/plain',
+            },
+            de => {
+                Subject     => 'Subject = article subject',
+                Body        => "someone wrote:
+<KIX_ARTICLE_Body>",
+                ContentType => 'text/plain',
+            },
+        },
+        ExpectedResults => [
+            {
+                Body    => "someone wrote:
+
+...text here...
+
+this is a URL: [1]KIXDesk
+
+...and here...
+
+=20
+
+[1] https://kixdesk.com
+",
+                ToArray => [$Contact{Email}],
+            },
+        ],
+        Success => 1,
+    },
 );
 
 my $SetPostMasterUserID = sub {
     my %Param = @_;
 
-    my $Success = $Helper->ConfigSettingChange(
+    my $IsSuccess = $Helper->ConfigSettingChange(
         Key   => 'PostmasterUserID',
         Value => $Param{UserID},
     );
 
     $Self->True(
-        $Success,
+        $IsSuccess,
         "PostmasterUserID set to $Param{UserID}",
     );
 };
@@ -1136,14 +1294,12 @@ my $SetOutOfOffice = sub {
 
     if ( $Param{OutOfOffice} ) {
 
-        # get time object
-        my $TimeObject = $Kernel::OM->Get('Time');
-        my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeObject->SystemTime() + $Param{SetOutOfOfficeDiffStart},
+        my ( $Sec, $Min, $Hour, $Day, $Month, $Year, $WeekDay ) = $Kernel::OM->Get('Time')->SystemTime2Date(
+            SystemTime => $Kernel::OM->Get('Time')->SystemTime() + $Param{SetOutOfOfficeDiffStart},
         );
 
-        my ( $ESec, $EMin, $EHour, $EDay, $EMonth, $EYear, $EWeekDay ) = $TimeObject->SystemTime2Date(
-            SystemTime => $TimeObject->SystemTime() + $Param{SetOutOfOfficeDiffEnd},
+        my ( $ESec, $EMin, $EHour, $EDay, $EMonth, $EYear, $EWeekDay ) = $Kernel::OM->Get('Time')->SystemTime2Date(
+            SystemTime => $Kernel::OM->Get('Time')->SystemTime() + $Param{SetOutOfOfficeDiffEnd},
         );
 
         my %Preferences = (
@@ -1156,50 +1312,52 @@ my $SetOutOfOffice = sub {
         );
 
         # pref update db
-        my $Success = $UserObject->SetPreferences(
+        my $IsSuccess = $Kernel::OM->Get('User')->SetPreferences(
             UserID => $Param{UserID},
             Key    => 'OutOfOffice',
             Value  => 1,
         );
 
         for my $Key (
-            qw( OutOfOfficeStartYear OutOfOfficeStartMonth OutOfOfficeStartDay OutOfOfficeEndYear OutOfOfficeEndMonth OutOfOfficeEndDay)
+            qw(
+                OutOfOfficeStartYear OutOfOfficeStartMonth OutOfOfficeStartDay
+                OutOfOfficeEndYear OutOfOfficeEndMonth OutOfOfficeEndDay
             )
-        {
+        ) {
 
             # pref update db
-            my $PreferenceSet = $UserObject->SetPreferences(
+            my $PreferenceSet = $Kernel::OM->Get('User')->SetPreferences(
                 UserID => $Param{UserID},
                 Key    => $Key,
                 Value  => $Preferences{$Key},
             );
 
             if ( !$PreferenceSet ) {
-                $Success = 0;
+                $IsSuccess = 0;
             }
         }
 
         $Self->True(
-            $Success,
+            $IsSuccess,
             "User set OutOfOffice",
         );
     }
     else {
 
         # pref update db
-        my $Success = $UserObject->SetPreferences(
+        my $IsSuccess = $Kernel::OM->Get('User')->SetPreferences(
             UserID => $Param{UserID},
             Key    => 'OutOfOffice',
             Value  => 0,
         );
 
         $Self->True(
-            $Success,
+            $IsSuccess,
             "User set Not OutOfOffice",
         );
     }
 
-    my %UserPreferences = $UserObject->GetPreferences(
+    my %UserPreferences = $Kernel::OM->Get('User')->GetPreferences(
         UserID => $Param{UserID},
     );
 
@@ -1210,7 +1368,7 @@ my $SetOutOfOffice = sub {
 my $SetTicketHistory = sub {
     my %Param = @_;
 
-    my $Success = $TicketObject->HistoryAdd(
+    my $IsSuccess = $Kernel::OM->Get('Ticket')->HistoryAdd(
         TicketID     => $TicketID,
         HistoryType  => 'SendAgentNotification',
         Name         => "\%\%$Param{NotificationName}\%\%$Param{UserLogin}\%\%Email",
@@ -1218,7 +1376,7 @@ my $SetTicketHistory = sub {
     );
 
     $Self->True(
-        $Success,
+        $IsSuccess,
         "Ticket HistoryAdd() for User $Param{UserID}",
     );
 };
@@ -1232,28 +1390,19 @@ my $SetUserNotificationPreference = sub {
         },
     );
 
-    my $Success = $UserObject->SetPreferences(
+    my $IsSuccess = $Kernel::OM->Get('User')->SetPreferences(
         Key    => 'NotificationTransport',
         Value  => $Value,
         UserID => $Param{UserID},
     );
 
     $Self->True(
-        $Success,
+        $IsSuccess,
         "Updated notification $Param{NotificationID} preference with value $Param{Value} for User $Param{UserID}",
     );
 };
 
-my $PostmasterUserID = $ConfigObject->Get('PostmasterUserID') || 1;
-
-my $NotificationEventObject      = $Kernel::OM->Get('NotificationEvent');
-my $EventNotificationEventObject = $Kernel::OM->Get('Kernel::System::Ticket::Event::NotificationEvent');
-
-print STDERR "SendmailModule: ConfigObject: $ConfigObject\n";
-
-    use Data::Dumper;
-print STDERR "SendmailModule (Raw): ".Data::Dumper::Dumper($ConfigObject->{Config}->{'SendmailModule'});
-print STDERR "SendmailModule (Get): ".Data::Dumper::Dumper($ConfigObject->Get('SendmailModule'));
+my $PostmasterUserID = $Kernel::OM->Get('Config')->Get('PostmasterUserID') || 1;
 
 my $Count = 0;
 my $NotificationID;
@@ -1261,61 +1410,68 @@ TEST:
 for my $Test (@Tests) {
 
     # save article count of ticket for later use
-    my @ArticleBoxInitial = $TicketObject->ArticleContentIndex(
+    my @ArticleBoxInitial = $Kernel::OM->Get('Ticket')->ArticleContentIndex(
         TicketID => $TicketID,
         UserID   => 1,
     );
 
-    # add transport setting
-    $Test->{Data}->{Transports} = ['Email'];
-
     if ( $Test->{ContentType} && $Test->{ContentType} eq 'text/html' ) {
         # enable RichText
         $Kernel::OM->Get('TemplateGenerator')->{RichText} = 1;
-        my $Success = $ConfigObject->Set(
+        my $IsSuccess = $Kernel::OM->Get('Config')->Set(
             Key   => 'Frontend::RichText',
             Value => 1,
         );
     }
-    elsif ( $ConfigObject->Get('Frontend::RichText' )) {
+    elsif ( $Kernel::OM->Get('Config')->Get('Frontend::RichText' )) {
         # disable RichText
         $Kernel::OM->Get('TemplateGenerator')->{RichText} = 0;
-        my $Success = $ConfigObject->Set(
+        my $IsSuccess = $Kernel::OM->Get('Config')->Set(
             Key   => 'Frontend::RichText',
             Value => 0,
         );
     }
 
-    $NotificationID = $NotificationEventObject->NotificationAdd(
+    my $Message = $Test->{Message};
+
+    if ( !$Test->{Message} && (!$Test->{ContentType} || $Test->{ContentType} ne 'text/html') ) {
+        $Message = {
+            en => {
+                Subject     => 'JobName',
+                Body        => 'JobName <KIX_TICKET_TicketID> <KIX_CONFIG_SendmailModule> <KIX_OWNER_Firstname>',
+                ContentType => 'text/plain',
+            },
+            de => {
+                Subject     => 'JobName',
+                Body        => 'JobName <KIX_TICKET_TicketID> <KIX_CONFIG_SendmailModule> <KIX_OWNER_Firstname>',
+                ContentType => 'text/plain',
+            }
+        }
+    } 
+    elsif ( !$Test->{Message} ) {
+        $Message = {
+            en => {
+                Subject     => 'JobName',
+                Body        => 'JobName &lt;KIX_TICKET_TicketID&gt; &lt;KIX_CONFIG_SendmailModule&gt; &lt;KIX_OWNER_Firstname&gt;',
+                ContentType => 'text/html',
+            },
+            de => {
+                Subject     => 'JobName',
+                Body        => 'JobName &lt;KIX_TICKET_TicketID&gt; &lt;KIX_CONFIG_SendmailModule&gt; &lt;KIX_OWNER_Firstname&gt;',
+                ContentType => 'text/html',
+            },
+        }
+    }
+
+    $NotificationID = $Kernel::OM->Get('NotificationEvent')->NotificationAdd(
         Name    => "JobName$Count-$RandomID",
         Comment => 'An optional comment',
         Data    => $Test->{Data},
         Filter  => $Test->{Filter},
-        Message => (!$Test->{ContentType} || $Test->{ContentType} ne 'text/html') ? {
-            en => {
-                Subject     => 'JobName',
-                Body        => 'JobName <KIX_TICKET_TicketID> <KIX_CONFIG_SendmailModule> <KIX_OWNER_Firstname>',
-                ContentType => 'text/plain',
-            },
-            de => {
-                Subject     => 'JobName',
-                Body        => 'JobName <KIX_TICKET_TicketID> <KIX_CONFIG_SendmailModule> <KIX_OWNER_Firstname>',
-                ContentType => 'text/plain',
-            },
-        } : {
-            en => {
-                Subject     => 'JobName',
-                Body        => 'JobName &lt;KIX_TICKET_TicketID&gt; &lt;KIX_CONFIG_SendmailModule&gt; &lt;KIX_OWNER_Firstname&gt;',
-                ContentType => 'text/html',
-            },
-            de => {
-                Subject     => 'JobName',
-                Body        => 'JobName &lt;KIX_TICKET_TicketID&gt; &lt;KIX_CONFIG_SendmailModule&gt; &lt;KIX_OWNER_Firstname&gt;',
-                ContentType => 'text/html',
-            },
-        },
+        Message => $Message,
         ValidID => 1,
         UserID  => 1,
+        Silent  => $Test->{Silent},
     );
 
     # sanity check
@@ -1359,7 +1515,15 @@ for my $Test (@Tests) {
         next TEST if !$SuccessOOO;
     }
 
-    my $Result = $EventNotificationEventObject->Run( %{ $Test->{Config} } );
+    # Make sure that the NotificationEvent-Handler gets recreated for each loop.
+    $Kernel::OM->ObjectsDiscard(
+        Objects => [ 'Kernel::System::Ticket::Event::NotificationEvent' ],
+    );
+
+    my $Result = $Kernel::OM->Get('Kernel::System::Ticket::Event::NotificationEvent')->Run(
+        %{ $Test->{Config} },
+        Silent => $Test->{Silent}
+    );
 
     if ( !$Test->{Success} ) {
         $Self->False(
@@ -1404,7 +1568,7 @@ for my $Test (@Tests) {
 
     # check if there is a new article if one has to be created
     if ( IsArrayRefWithData($Test->{Data}->{CreateArticle}) && $Test->{Data}->{CreateArticle}->[0] ) {
-        my @ArticleBox = $TicketObject->ArticleContentIndex(
+        my @ArticleBox = $Kernel::OM->Get('Ticket')->ArticleContentIndex(
             TicketID => $TicketID,
             UserID   => 1,
         );
@@ -1432,7 +1596,7 @@ for my $Test (@Tests) {
 continue {
 
     # delete notification event
-    my $NotificationDelete = $NotificationEventObject->NotificationDelete(
+    my $NotificationDelete = $Kernel::OM->Get('NotificationEvent')->NotificationDelete(
         ID     => $NotificationID,
         UserID => 1,
     );
@@ -1445,7 +1609,7 @@ continue {
 
     $TestEmailObject->CleanUp();
 
-    # reset PostMasteruserID to the original value
+    # reset PostMasterUserID to the original value
     if ( $Test->{SetPostMasterUserID} ) {
         $SetPostMasterUserID->(
             UserID => $PostmasterUserID,
@@ -1464,11 +1628,8 @@ continue {
     undef $NotificationID;
 }
 
-# cleanup is done by RestoreDatabase but we need to run cleanup
-# code too to remove data if the FS backend is used
-
-# delete the ticket
-my $TicketDelete = $TicketObject->TicketDelete(
+# delete the ticket to cleanup file system
+my $TicketDelete = $Kernel::OM->Get('Ticket')->TicketDelete(
     TicketID => $TicketID,
     UserID   => $UserID,
 );
@@ -1478,6 +1639,9 @@ $Self->True(
     $TicketDelete,
     "TicketDelete() successful for Ticket ID $TicketID",
 );
+
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

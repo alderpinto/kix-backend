@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -15,7 +15,7 @@ use warnings;
 
 use base qw(Kernel::System::AsynchronousExecutor);
 
-our @ObjectDependencies = ( );
+our @ObjectDependencies = ();
 
 =head1 NAME
 
@@ -77,7 +77,7 @@ sub Execute {
     return $Param{Success};
 }
 
-sub ExecuteAsyc {
+sub ExecuteAsync {
     my ( $Self, %Param ) = @_;
 
     # create a new task for the scheduler daemon
@@ -91,7 +91,7 @@ sub ExecuteAsyc {
     return 1;
 }
 
-sub ExecuteAsycWithObjectName {
+sub ExecuteAsyncWithObjectName {
     my ( $Self, %Param ) = @_;
 
     # create a new task for the scheduler daemon
@@ -166,10 +166,6 @@ sub _FileWrite {
 }
 
 1;
-
-
-
-
 
 =back
 

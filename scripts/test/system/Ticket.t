@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -24,12 +24,10 @@ my $TypeObject    = $Kernel::OM->Get('Type');
 my $UserObject    = $Kernel::OM->Get('User');
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
 
 # set fixed time
 $Helper->FixedTimeSet();
@@ -39,16 +37,23 @@ my %Contact = $ContactObject->ContactGet(
     ID => $ContactID
 );
 
+my $TestUserLogin = $Helper->TestUserCreate(
+    Roles => ['Ticket Agent'],
+);
+my $TestUserID = $UserObject->UserLookup(
+    UserLogin => $TestUserLogin,
+);
+
 my $TicketID = $TicketObject->TicketCreate(
-    Title        => 'Some Ticket_Title',
-    Queue        => 'Junk',
-    Lock         => 'unlock',
-    Priority     => '3 normal',
-    State        => 'closed',
+    Title          => 'Some Ticket_Title',
+    Queue          => 'Junk',
+    Lock           => 'unlock',
+    Priority       => '3 normal',
+    State          => 'closed',
     OrganisationID => $Contact{PrimaryOrganisationID},
-    ContactID    => $ContactID,
-    OwnerID      => 1,
-    UserID       => 1,
+    ContactID      => $ContactID,
+    OwnerID        => $TestUserID,
+    UserID         => 1,
 );
 $Self->True(
     $TicketID,
@@ -81,7 +86,7 @@ $Self->Is(
 );
 $Self->Is(
     $Ticket{Owner},
-    'admin',
+    $TestUserLogin,
     'TicketGet() (Owner)',
 );
 $Self->Is(
@@ -116,30 +121,17 @@ $Self->Is(
     $TypeObject->TypeLookup( Type => $DefaultTicketType ),
     'TicketGet() (TypeID)',
 );
-$Self->Is(
-    $Ticket{SolutionTime},
-    $Ticket{Created},
-    'Ticket created as closed as Solution Time = Creation Time',
-);
-
-my $TestUserLogin = $Helper->TestUserCreate(
-    Groups => [ 'users', ],
-);
-
-my $TestUserID = $UserObject->UserLookup(
-    UserLogin => $TestUserLogin,
-);
 
 my $TicketIDCreatedBy = $TicketObject->TicketCreate(
-    Title        => 'Some Ticket_Title',
-    Queue        => 'Junk',
-    Lock         => 'unlock',
-    Priority     => '3 normal',
-    State        => 'closed',
+    Title          => 'Some Ticket_Title',
+    Queue          => 'Junk',
+    Lock           => 'unlock',
+    Priority       => '3 normal',
+    State          => 'closed',
     OrganisationID => $Contact{PrimaryOrganisationID},
-    ContactID    => $ContactID,
-    OwnerID      => 1,
-    UserID       => $TestUserID,
+    ContactID      => $ContactID,
+    OwnerID        => 1,
+    UserID         => $TestUserID,
 );
 
 my %CheckCreatedBy = $TicketObject->TicketGet(
@@ -275,25 +267,26 @@ for my $Key (qw( Body Subject From To ReplyTo )) {
 }
 
 my $TicketSearchTicketNumber = substr $Ticket{TicketNumber}, 0, 10;
-my %TicketIDs = $TicketObject->TicketSearch(
-    Result       => 'HASH',
-    Limit        => 100,
-    Search       => {
+my %TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         OR => [
             {
-                Field => 'TicketNumber',
-                Value => $TicketSearchTicketNumber,
+                Field    => 'TicketNumber',
+                Value    => $TicketSearchTicketNumber,
                 Operator => 'STARTSWITH',
             },
             {
-                Field => 'TicketNumber',
-                Value => 'not existing',
+                Field    => 'TicketNumber',
+                Value    => 'not existing',
                 Operator => 'CONTAINS',
             }
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserID     => 1,
+    UserType   => 'Agent',
 );
 
 $Self->True(
@@ -301,47 +294,50 @@ $Self->True(
     'TicketSearch() (HASH:TicketNumber STARTSWITH or CONTAINS)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result       => 'HASH',
-    Limit        => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
-                Field => 'TicketNumber',
-                Value => $Ticket{TicketNumber},
+                Field    => 'TicketNumber',
+                Value    => $Ticket{TicketNumber},
                 Operator => 'EQ',
             },
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber EQUALS)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result       => 'HASH',
-    Limit        => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
-                Field => 'Age',
-                Value => 3600,
+                Field    => 'Age',
+                Value    => 3600,
                 Operator => 'LT',
             },
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:Age LT)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'HASH',
     Limit        => 100,
     Search       => {
@@ -353,18 +349,19 @@ $Self->True(
             },
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->False(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:Age GT)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result     => 'HASH',
     Limit      => 100,
-    Search       => {
+    Search     => {
         AND => [
             {
                 Field => 'TicketID',
@@ -374,7 +371,7 @@ $Self->False(
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 
 $Self->True(
@@ -382,10 +379,11 @@ $Self->True(
     'TicketSearch() (HASH:TicketID EQUALS)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result     => 'HASH',
     Limit      => 100,
-    Search       => {
+    Search     => {
         OR => [
             {
                 Field => 'TicketID',
@@ -400,7 +398,7 @@ $Self->True(
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 
 $Self->True(
@@ -408,9 +406,10 @@ $Self->True(
     'TicketSearch() (HASH:TicketID EQUALS A or B)',
 );
 
-my $Count = $TicketObject->TicketSearch(
-    Result       => 'COUNT',
-    Search       => {
+my $Count = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'COUNT',
+    Search     => {
         OR => [
             {
                 Field => 'TicketNumber',
@@ -419,8 +418,8 @@ my $Count = $TicketObject->TicketSearch(
             },
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->Is(
     $Count,
@@ -428,10 +427,11 @@ $Self->Is(
     'TicketSearch() (COUNT:TicketNumber EQUALS)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result       => 'HASH',
-    Limit        => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         OR => [
             {
                 Field => 'TicketNumber',
@@ -440,15 +440,16 @@ $Self->Is(
             },
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber IN)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result     => 'HASH',
     Limit      => 100,
     Search     => {
@@ -462,14 +463,15 @@ $Self->True(
     },
     Title      => $Ticket{Title},
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:Title EQUALS)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result     => 'HASH',
     Limit      => 100,
     Search     => {
@@ -487,14 +489,15 @@ $Self->True(
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:Title EQUALS A or B)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result     => 'HASH',
     Limit      => 100,
     Search     => {
@@ -507,34 +510,36 @@ $Self->True(
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:OrganisationID EQUALS)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result     => 'HASH',
     Limit      => 100,
     Search     => {
         OR => [
             {
                 Field => 'OrganisationID',
-                Value => [ $Ticket{OrganisationID}, 12345 ],
+                Value => [ $Ticket{OrganisationID}, 12_345 ],
                 Operator => 'IN',
             },
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:OrganisationID IN)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result     => 'HASH',
     Limit      => 100,
     Search     => {
@@ -546,22 +551,23 @@ $Self->True(
             },
             {
                 Field => 'OrganisationID',
-                Value => 12345,
+                Value => 12_345,
                 Operator => 'EQ',
             },
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->False(
     scalar $TicketIDs{$TicketID},
     'TicketSearch() (HASH:OrganisationID EQUALS A and B)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result            => 'HASH',
-    Limit             => 100,
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
     Search     => {
         OR => [
             {
@@ -571,17 +577,18 @@ $Self->False(
             },
         ]
     },
-    UserID            => 1,
-    Permission        => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:ContactID EQUALS)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result            => 'HASH',
-    Limit             => 100,
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
     Search     => {
         OR => [
             {
@@ -591,17 +598,18 @@ $Self->True(
             },
         ]
     },
-    UserID            => 1,
-    Permission        => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:ContactID IN)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result            => 'HASH',
-    Limit             => 100,
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
     Search     => {
         AND => [
             {
@@ -626,17 +634,18 @@ $Self->True(
             },
         ]
     },
-    UserID            => 1,
-    Permission        => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber and Title and OrganisationID and ContactID EQUALS)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result            => 'HASH',
-    Limit             => 100,
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
     Search     => {
         AND => [
             {
@@ -651,25 +660,26 @@ $Self->True(
             },
             {
                 Field => 'ContactID',
-                Value => [ $Ticket{ContactID}, 12345 ],
+                Value => [ $Ticket{ContactID}, 12_345 ],
                 Operator => 'IN',
             },
             {
                 Field => 'OrganisationID',
-                Value => [ $Ticket{OrganisationID}, 12345 ],
+                Value => [ $Ticket{OrganisationID}, 12_345 ],
                 Operator => 'IN',
             },
         ]
     },
-    UserID            => 1,
-    Permission        => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->False(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber and Title and OrganisationID and ContactID IN)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result            => 'HASH',
     Limit             => 100,
     Search     => {
@@ -686,27 +696,27 @@ $Self->False(
             },
             {
                 Field => 'ContactID',
-                Value => [ $Ticket{ContactID}, 12345 ],
+                Value => [ $Ticket{ContactID}, 12_345 ],
                 Operator => 'IN',
             },
             {
                 Field => 'OrganisationID',
-                Value => [ $Ticket{OrganisationID}, 12345 ],
+                Value => [ $Ticket{OrganisationID}, 12_345 ],
                 Operator => 'IN',
             },
         ]
     },
     UserID            => 1,
-    Permission        => 'rw',
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber or Title or OrganisationID or ContactID IN)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result       => 'HASH',
-    Limit        => 100,
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
     Search     => {
         AND => [
             {
@@ -721,15 +731,16 @@ $Self->True(
             },
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber,StateType:Closed)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'HASH',
     Limit        => 100,
     Search     => {
@@ -747,16 +758,16 @@ $Self->True(
         ]
     },
     UserID       => 1,
-    Permission   => 'rw',
 );
 $Self->False(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber,StateType:Open)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result              => 'HASH',
-    Limit               => 100,
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
     Search     => {
         AND => [
             {
@@ -771,15 +782,16 @@ $Self->False(
             },
         ]
     },
-    UserID              => 1,
-    Permission          => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:Body,StateType:Closed)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result              => 'HASH',
     Limit               => 100,
     Search     => {
@@ -797,21 +809,20 @@ $Self->True(
         ]
     },
     UserID              => 1,
-    Permission          => 'rw',
 );
 $Self->True(
     !$TicketIDs{$TicketID},
     'TicketSearch() (HASH:Body,StateType:Open)',
 );
 
-$TicketObject->MoveTicket(
+$TicketObject->TicketQueueSet(
     Queue              => 'Junk',
     TicketID           => $TicketID,
     SendNoNotification => 1,
     UserID             => 1,
 );
 
-$TicketObject->MoveTicket(
+$TicketObject->TicketQueueSet(
     Queue              => 'Junk',
     TicketID           => $TicketID,
     SendNoNotification => 1,
@@ -832,7 +843,7 @@ $Self->Is(
     'HistoryTicketGet() Check history queue',
 );
 
-my $TicketMove = $TicketObject->MoveTicket(
+my $TicketMove = $TicketObject->TicketQueueSet(
     Queue              => 'Junk',
     TicketID           => $TicketID,
     SendNoNotification => 1,
@@ -843,7 +854,7 @@ $Self->True(
     'MoveTicket()',
 );
 
-my $TicketState = $TicketObject->StateSet(
+my $TicketState = $TicketObject->TicketStateSet(
     State    => 'open',
     TicketID => $TicketID,
     UserID   => 1,
@@ -853,10 +864,11 @@ $Self->True(
     'StateSet()',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result       => 'HASH',
-    Limit        => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'TicketNumber',
@@ -870,18 +882,19 @@ $Self->True(
             }
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber,StateType:Open)',
 );
 
-%TicketIDs = $TicketObject->TicketSearch(
-    Result       => 'HASH',
-    Limit        => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'TicketNumber',
@@ -895,15 +908,15 @@ $Self->True(
             }
         ]
     },
-    UserID       => 1,
-    Permission   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->False(
     $TicketIDs{$TicketID},
     'TicketSearch() (HASH:TicketNumber,StateType:Closed)',
 );
 
-my $TicketPriority = $TicketObject->PrioritySet(
+my $TicketPriority = $TicketObject->TicketPrioritySet(
     Priority => '4 low',
     TicketID => $TicketID,
     UserID   => 1,
@@ -983,7 +996,7 @@ $Helper->FixedTimeAddSeconds(5);
 
 # set unlock timeout
 my $UnlockTimeout = $TicketObject->TicketUnlockTimeoutUpdate(
-    UnlockTimeout => $TimeObject->SystemTime() + 10000,
+    UnlockTimeout => $TimeObject->SystemTime() + 10_000,
     TicketID      => $TicketID,
     UserID        => 1,
 );
@@ -1126,7 +1139,7 @@ $Helper->FixedTimeAddSeconds(5);
     UserID   => 1,
 );
 
-my $TicketLock = $TicketObject->LockSet(
+my $TicketLock = $TicketObject->TicketLockSet(
     Lock               => 'lock',
     TicketID           => $TicketID,
     SendNoNotification => 1,
@@ -1134,18 +1147,19 @@ my $TicketLock = $TicketObject->LockSet(
 );
 $Self->True(
     $TicketLock,
-    'LockSet()',
+    'TicketLockSet()',
 );
 
-# Test CreatedUserIDs
-%TicketIDs = $TicketObject->TicketSearch(
-    Result         => 'HASH',
-    Limit          => 100,
-    Search         => {
+# Test CreateByID
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
-                Field => 'CreatedUserID',
-                Value => [ 1, 455, 32 ],
+                Field    => 'CreateByID',
+                Value    => [ 1, 455, 32 ],
                 Operator => 'IN',
             },
         ]
@@ -1156,35 +1170,36 @@ $Self->True(
             Direction => 'descending',
         },
     ],
-    UserID         => 1,
-    Permission     => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
-    'TicketSearch() (HASH:CreatedUserID IN)',
+    'TicketSearch() (HASH:CreateByID IN)',
 );
 
 # Test CreatedPriorityIDs
-%TicketIDs = $TicketObject->TicketSearch(
-    Result             => 'HASH',
-    Limit              => 100,
-    Search             => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
-                Field => 'CreatedPriorityID',
-                Value => [ 2, 3 ],
+                Field    => 'CreatedPriorityID',
+                Value    => [ 2, 3 ],
                 Operator => 'IN',
             },
         ]
     },
     Sort => [
         {
-            Field => "TicketID",
+            Field     => "TicketID",
             Direction => 'descending',
         },
     ],
-    UserID             => 1,
-    Permission         => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
@@ -1192,14 +1207,15 @@ $Self->True(
 );
 
 # Test CreatedStateIDs
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result          => 'HASH',
     Limit           => 100,
     Search       => {
         AND => [
             {
-                Field => 'CreatedStateID',
-                Value => [ 2 ],
+                Field    => 'CreatedStateID',
+                Value    => [ 4 ],
                 Operator => 'IN',
             },
         ]
@@ -1210,8 +1226,8 @@ $Self->True(
             Direction => 'descending',
         },
     ],
-    UserID          => 1,
-    Permission      => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
@@ -1219,10 +1235,11 @@ $Self->True(
 );
 
 # Test CreatedQueueIDs
-%TicketIDs = $TicketObject->TicketSearch(
-    Result          => 'HASH',
-    Limit           => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'CreatedQueueID',
@@ -1237,8 +1254,8 @@ $Self->True(
             Direction => 'descending',
         },
     ],
-    UserID          => 1,
-    Permission      => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
@@ -1249,10 +1266,11 @@ $Self->True(
 my $CreateTime = $TimeObject->SystemTime2TimeStamp(
     SystemTime => $TimeObject->SystemTime() - 3600,
 );
-%TicketIDs = $TicketObject->TicketSearch(
-    Result                       => 'HASH',
-    Limit                        => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'CreateTime',
@@ -1261,8 +1279,8 @@ my $CreateTime = $TimeObject->SystemTime2TimeStamp(
             },
         ]
     },
-    UserID                       => 1,
-    Permission                   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
@@ -1273,10 +1291,11 @@ $Self->True(
 $CreateTime = $TimeObject->SystemTime2TimeStamp(
     SystemTime => $TimeObject->SystemTime() - 3600,
 );
-%TicketIDs = $TicketObject->TicketSearch(
-    Result                           => 'HASH',
-    Limit                            => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'LastChangeTime',
@@ -1285,8 +1304,8 @@ $CreateTime = $TimeObject->SystemTime2TimeStamp(
             },
         ]
     },
-    UserID                           => 1,
-    Permission                       => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->True(
     $TicketIDs{$TicketID},
@@ -1294,7 +1313,8 @@ $Self->True(
 );
 
 # Test ArticleCreateTime
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result                        => 'HASH',
     Limit                         => 100,
     Search       => {
@@ -1307,7 +1327,6 @@ $Self->True(
         ]
     },
     UserID                        => 1,
-    Permission                    => 'rw',
 );
 $Self->True(
     $TicketIDs{$TicketID},
@@ -1315,10 +1334,11 @@ $Self->True(
 );
 
 # Test CreateTime
-%TicketIDs = $TicketObject->TicketSearch(
-    Result                       => 'HASH',
-    Limit                        => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'CreateTime',
@@ -1327,8 +1347,8 @@ $Self->True(
             },
         ]
     },
-    UserID                       => 1,
-    Permission                   => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->False(
     $TicketIDs{$TicketID},
@@ -1336,7 +1356,8 @@ $Self->False(
 );
 
 # Test TicketLastChangeOlderMinutes
-%TicketIDs = $TicketObject->TicketSearch(
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result                           => 'HASH',
     Limit                            => 100,
     Search       => {
@@ -1349,7 +1370,6 @@ $Self->False(
         ]
     },
     UserID                           => 1,
-    Permission                       => 'rw',
 );
 $Self->False(
     $TicketIDs{$TicketID},
@@ -1357,10 +1377,11 @@ $Self->False(
 );
 
 # Test ArticleCreateTime
-%TicketIDs = $TicketObject->TicketSearch(
-    Result                        => 'HASH',
-    Limit                         => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'ArticleCreateTime',
@@ -1369,8 +1390,8 @@ $Self->False(
             },
         ]
     },
-    UserID                        => 1,
-    Permission                    => 'rw',
+    UserType => 'Agent',
+    UserID   => 1,
 );
 $Self->False(
     $TicketIDs{$TicketID},
@@ -1378,10 +1399,11 @@ $Self->False(
 );
 
 # Test CloseTime
-%TicketIDs = $TicketObject->TicketSearch(
-    Result                   => 'HASH',
-    Limit                    => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'CloseTime',
@@ -1391,7 +1413,7 @@ $Self->False(
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->True(
     $TicketIDs{$TicketID},
@@ -1399,10 +1421,11 @@ $Self->True(
 );
 
 # Test TicketCloseOlderDate
-%TicketIDs = $TicketObject->TicketSearch(
-    Result                   => 'HASH',
-    Limit                    => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
                 Field => 'CloseTime',
@@ -1412,7 +1435,7 @@ $Self->True(
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->False(
     $TicketIDs{$TicketID},
@@ -1449,7 +1472,7 @@ $Self->Is(
     'TicketGet() (Lock)',
 );
 
-my @MoveQueueList = $TicketObject->MoveQueueList(
+my @MoveQueueList = $TicketObject->TicketMoveQueueList(
     TicketID => $TicketID,
     Type     => 'Name',
 );
@@ -1505,7 +1528,7 @@ my $AccountedTime = $TicketObject->TicketAccountedTimeGet( TicketID => $TicketID
 
 $Self->Is(
     $AccountedTime,
-    4132.56,
+    4132,
     'TicketAccountedTimeGet()',
 );
 
@@ -1604,6 +1627,7 @@ $Self->True(
 my $DeleteCheck = $TicketObject->TicketGet(
     TicketID => $TicketID,
     UserID   => 1,
+    Silent   => 1,
 );
 
 $Self->False(
@@ -1667,39 +1691,40 @@ $Self->IsNot(
 
 # find newest ticket by priority, age
 my $QueueID = $QueueObject->QueueLookup( Queue => 'Junk' );
-my @TicketIDsSortOrder = $TicketObject->TicketSearch(
+my @TicketIDsSortOrder = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'ARRAY',
     Search       => {
         AND => [
             {
-                Field => 'Title',
-                Value => 'sort/order by test',
+                Field    => 'Title',
+                Value    => 'sort/order by test',
                 Operator => 'CONTAINS',
             },
             {
-                Field => 'QueueID',
-                Value => $QueueID,
+                Field    => 'QueueID',
+                Value    => $QueueID,
                 Operator => 'EQ',
             },
             {
-                Field => 'OrganisationID',
-                Value => $Contact{PrimaryOrganisationID},
+                Field    => 'OrganisationID',
+                Value    => $Contact{PrimaryOrganisationID},
                 Operator => 'EQ',
             },
             {
-                Field => 'ContactID',
-                Value => $ContactID,
+                Field    => 'ContactID',
+                Value    => $ContactID,
                 Operator => 'EQ',
             }
         ]
     },
     Sort => [
         {
-            Field => "PriorityID",
+            Field     => "PriorityID",
             Direction => 'descending',
         },
         {
-            Field => "Age",
+            Field     => "Age",
             Direction => 'ascending',
         }
     ],
@@ -1709,12 +1734,13 @@ my @TicketIDsSortOrder = $TicketObject->TicketSearch(
 
 $Self->Is(
     $TicketIDsSortOrder[0],
-    $TicketIDSortOrder1,
+    $TicketIDSortOrder2,
     'TicketTicketSearch() - ticket sort/order by (PriorityID (Down), Age (Up))',
 );
 
 # find oldest ticket by priority, age
-@TicketIDsSortOrder = $TicketObject->TicketSearch(
+@TicketIDsSortOrder = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'ARRAY',
     Search       => {
         AND => [
@@ -1755,12 +1781,13 @@ $Self->Is(
 );
 $Self->Is(
     $TicketIDsSortOrder[0],
-    $TicketIDSortOrder2,
+    $TicketIDSortOrder1,
     'TicketTicketSearch() - ticket sort/order by (PriorityID (Down), Age (Down))',
 );
 
 # find last modified ticket by changed time
-@TicketIDsSortOrder = $TicketObject->TicketSearch(
+@TicketIDsSortOrder = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'ARRAY',
     Search       => {
         AND => [
@@ -1803,7 +1830,8 @@ $Self->Is(
 );
 
 # find oldest modified by changed time
-@TicketIDsSortOrder = $TicketObject->TicketSearch(
+@TicketIDsSortOrder = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'ARRAY',
     Search       => {
         AND => [
@@ -1873,23 +1901,24 @@ my $TicketIDSortOrder4 = $TicketObject->TicketCreate(
 );
 
 # find oldest ticket by priority, age
-@TicketIDsSortOrder = $TicketObject->TicketSearch(
+@TicketIDsSortOrder = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'ARRAY',
     Search       => {
         AND => [
             {
-                Field => 'Title',
-                Value => 'sort/order by test',
+                Field    => 'Title',
+                Value    => 'sort/order by test',
                 Operator => 'CONTAINS',
             },
             {
-                Field => 'QueueID',
-                Value => $QueueID,
+                Field    => 'QueueID',
+                Value    => $QueueID,
                 Operator => 'EQ',
             },
             {
-                Field => 'OrganisationID',
-                Value => $Contact{PrimaryOrganisationID},
+                Field    => 'OrganisationID',
+                Value    => $Contact{PrimaryOrganisationID},
                 Operator => 'EQ',
             },
             {
@@ -1901,142 +1930,12 @@ my $TicketIDSortOrder4 = $TicketObject->TicketCreate(
     },
     Sort => [
         {
-            Field => "PriorityID",
+            Field     => "PriorityID",
             Direction => 'descending',
         },
         {
-            Field => "Age",
+            Field     => "Age",
             Direction => 'descending',
-        }
-    ],
-    UserID       => 1,
-    Limit        => 1,
-);
-$Self->Is(
-    $TicketIDsSortOrder[0],
-    $TicketIDSortOrder4,
-    'TicketTicketSearch() - ticket sort/order by (Priority (Down), Age (Down))',
-);
-
-# find oldest ticket by priority, age
-@TicketIDsSortOrder = $TicketObject->TicketSearch(
-    Result       => 'ARRAY',
-    Search       => {
-        AND => [
-            {
-                Field => 'Title',
-                Value => 'sort/order by test',
-                Operator => 'CONTAINS',
-            },
-            {
-                Field => 'QueueID',
-                Value => $QueueID,
-                Operator => 'EQ',
-            },
-            {
-                Field => 'OrganisationID',
-                Value => $Contact{PrimaryOrganisationID},
-                Operator => 'EQ',
-            },
-            {
-                Field => 'ContactID',
-                Value => $ContactID,
-                Operator => 'EQ',
-            }
-        ]
-    },
-    Sort => [
-        {
-            Field => "PriorityID",
-            Direction => 'ascending',
-        },
-        {
-            Field => "Age",
-            Direction => 'descending',
-        }
-    ],
-    UserID       => 1,
-    Limit        => 1,
-);
-$Self->Is(
-    $TicketIDsSortOrder[0],
-    $TicketIDSortOrder2,
-    'TicketTicketSearch() - ticket sort/order by (Priority (Up), Age (Down))',
-);
-
-# find newest ticket
-@TicketIDsSortOrder = $TicketObject->TicketSearch(
-    Result       => 'ARRAY',
-    Search       => {
-        AND => [
-            {
-                Field => 'Title',
-                Value => 'sort/order by test',
-                Operator => 'CONTAINS',
-            },
-            {
-                Field => 'QueueID',
-                Value => $QueueID,
-                Operator => 'EQ',
-            },
-            {
-                Field => 'OrganisationID',
-                Value => $Contact{PrimaryOrganisationID},
-                Operator => 'EQ',
-            },
-            {
-                Field => 'ContactID',
-                Value => $ContactID,
-                Operator => 'EQ',
-            }
-        ]
-    },
-    Sort => [
-        {
-            Field => "Age",
-            Direction => 'descending',
-        }
-    ],
-    UserID       => 1,
-    Limit        => 1,
-);
-$Self->Is(
-    $TicketIDsSortOrder[0],
-    $TicketIDSortOrder4,
-    'TicketTicketSearch() - ticket sort/order by (Age (Down))',
-);
-
-# find oldest ticket
-@TicketIDsSortOrder = $TicketObject->TicketSearch(
-    Result       => 'ARRAY',
-    Search       => {
-        AND => [
-            {
-                Field => 'Title',
-                Value => 'sort/order by test',
-                Operator => 'CONTAINS',
-            },
-            {
-                Field => 'QueueID',
-                Value => $QueueID,
-                Operator => 'EQ',
-            },
-            {
-                Field => 'OrganisationID',
-                Value => $Contact{PrimaryOrganisationID},
-                Operator => 'EQ',
-            },
-            {
-                Field => 'ContactID',
-                Value => $ContactID,
-                Operator => 'EQ',
-            }
-        ]
-    },
-    Sort => [
-        {
-            Field => "Age",
-            Direction => 'ascending',
         }
     ],
     UserID       => 1,
@@ -2045,37 +1944,170 @@ $Self->Is(
 $Self->Is(
     $TicketIDsSortOrder[0],
     $TicketIDSortOrder1,
+    'TicketTicketSearch() - ticket sort/order by (Priority (Down), Age (Down))',
+);
+
+# find oldest ticket by priority, age
+@TicketIDsSortOrder = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result       => 'ARRAY',
+    Search       => {
+        AND => [
+            {
+                Field    => 'Title',
+                Value    => 'sort/order by test',
+                Operator => 'CONTAINS',
+            },
+            {
+                Field    => 'QueueID',
+                Value    => $QueueID,
+                Operator => 'EQ',
+            },
+            {
+                Field    => 'OrganisationID',
+                Value    => $Contact{PrimaryOrganisationID},
+                Operator => 'EQ',
+            },
+            {
+                Field    => 'ContactID',
+                Value    => $ContactID,
+                Operator => 'EQ',
+            }
+        ]
+    },
+    Sort => [
+        {
+            Field     => "PriorityID",
+            Direction => 'ascending',
+        },
+        {
+            Field     => "Age",
+            Direction => 'descending',
+        }
+    ],
+    UserID       => 1,
+    Limit        => 1,
+);
+$Self->Is(
+    $TicketIDsSortOrder[0],
+    $TicketIDSortOrder3,
+    'TicketTicketSearch() - ticket sort/order by (Priority (Up), Age (Down))',
+);
+
+# find newest ticket
+@TicketIDsSortOrder = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result       => 'ARRAY',
+    Search       => {
+        AND => [
+            {
+                Field    => 'Title',
+                Value    => 'sort/order by test',
+                Operator => 'CONTAINS',
+            },
+            {
+                Field    => 'QueueID',
+                Value    => $QueueID,
+                Operator => 'EQ',
+            },
+            {
+                Field    => 'OrganisationID',
+                Value    => $Contact{PrimaryOrganisationID},
+                Operator => 'EQ',
+            },
+            {
+                Field    => 'ContactID',
+                Value    => $ContactID,
+                Operator => 'EQ',
+            }
+        ]
+    },
+    Sort => [
+        {
+            Field     => "Age",
+            Direction => 'descending',
+        }
+    ],
+    UserID       => 1,
+    Limit        => 1,
+);
+$Self->Is(
+    $TicketIDsSortOrder[0],
+    $TicketIDSortOrder1,
+    'TicketTicketSearch() - ticket sort/order by (Age (Down))',
+);
+
+# find oldest ticket
+@TicketIDsSortOrder = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result       => 'ARRAY',
+    Search       => {
+        AND => [
+            {
+                Field    => 'Title',
+                Value    => 'sort/order by test',
+                Operator => 'CONTAINS',
+            },
+            {
+                Field    => 'QueueID',
+                Value    => $QueueID,
+                Operator => 'EQ',
+            },
+            {
+                Field    => 'OrganisationID',
+                Value    => $Contact{PrimaryOrganisationID},
+                Operator => 'EQ',
+            },
+            {
+                Field    => 'ContactID',
+                Value    => $ContactID,
+                Operator => 'EQ',
+            }
+        ]
+    },
+    Sort => [
+        {
+            Field     => "Age",
+            Direction => 'ascending',
+        }
+    ],
+    UserID       => 1,
+    Limit        => 1,
+);
+$Self->Is(
+    $TicketIDsSortOrder[0],
+    $TicketIDSortOrder4,
     'TicketTicketSearch() - ticket sort/order by (Age (Up))',
 );
 
-$Count = $TicketObject->TicketSearch(
+$Count = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'COUNT',
     Search       => {
         AND => [
             {
-                Field => 'Title',
-                Value => 'sort/order by test',
+                Field    => 'Title',
+                Value    => 'sort/order by test',
                 Operator => 'CONTAINS',
             },
             {
-                Field => 'QueueID',
-                Value => $QueueID,
+                Field    => 'QueueID',
+                Value    => $QueueID,
                 Operator => 'EQ',
             },
             {
-                Field => 'OrganisationID',
-                Value => $Contact{PrimaryOrganisationID},
+                Field    => 'OrganisationID',
+                Value    => $Contact{PrimaryOrganisationID},
                 Operator => 'EQ',
             },
             {
-                Field => 'ContactID',
-                Value => $ContactID,
+                Field    => 'ContactID',
+                Value    => $ContactID,
                 Operator => 'EQ',
             }
         ]
     },
     UserID       => 1,
-    Limit        => 1,
 );
 $Self->Is(
     $Count,
@@ -2134,30 +2166,31 @@ my %StateList = $StateObject->StateList( UserID => 1 );
 
 # now check every possible state
 for my $State ( values %StateList ) {
-    $TicketObject->StateSet(
+    $TicketObject->TicketStateSet(
         State              => $State,
         TicketID           => $TicketID,
         SendNoNotification => 1,
         UserID             => 1,
     );
 
-    my @TicketIDs = $TicketObject->TicketSearch(
+    my @TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
         Result       => 'ARRAY',
         Search       => {
             AND => [
                 {
-                    Field => 'Title',
-                    Value => 'StateTypeTest',
+                    Field    => 'Title',
+                    Value    => 'StateTypeTest',
                     Operator => 'CONTAINS',
                 },
                 {
-                    Field => 'QueueID',
-                    Value => $QueueID,
+                    Field    => 'QueueID',
+                    Value    => $QueueID,
                     Operator => 'EQ',
                 },
                 {
-                    Field => 'StateTypeID',
-                    Value => [ $StateAsKeyAndStateTypeAsValue{$State}->{ID} ],
+                    Field    => 'StateTypeID',
+                    Value    => [ $StateAsKeyAndStateTypeAsValue{$State}->{ID} ],
                     Operator => 'IN',
                 }
             ]
@@ -2165,23 +2198,24 @@ for my $State ( values %StateList ) {
         UserID       => 1,
     );
 
-    my @TicketIDsType = $TicketObject->TicketSearch(
+    my @TicketIDsType = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
         Result    => 'ARRAY',
         Search       => {
             AND => [
                 {
-                    Field => 'Title',
-                    Value => 'StateTypeTest',
+                    Field    => 'Title',
+                    Value    => 'StateTypeTest',
                     Operator => 'CONTAINS',
                 },
                 {
-                    Field => 'QueueID',
-                    Value => $QueueID,
+                    Field    => 'QueueID',
+                    Value    => $QueueID,
                     Operator => 'EQ',
                 },
                 {
-                    Field => 'StateType',
-                    Value => [ $StateAsKeyAndStateTypeAsValue{$State}->{Name} ],
+                    Field    => 'StateType',
+                    Value    => [ $StateAsKeyAndStateTypeAsValue{$State}->{Name} ],
                     Operator => 'IN',
                 }
             ]
@@ -2281,7 +2315,7 @@ $PendingUntilTime = $TimeObject->SystemTime() - $PendingUntilTime;
 
 $Self->Is(
     $TicketPending{UntilTime},
-    '-' . $PendingUntilTime,
+    q{-} . $PendingUntilTime,
     "TicketPendingTimeSet() - Pending Time - read back",
 );
 
@@ -2335,7 +2369,7 @@ $PendingUntilTime = $TimeObject->SystemTime() - $PendingUntilTime;
 
 $Self->Is(
     $TicketPending{UntilTime},
-    '-' . $PendingUntilTime,
+    q{-} . $PendingUntilTime,
     "TicketPendingTimeSet() - Pending Time - read back",
 );
 
@@ -2405,27 +2439,25 @@ $Self->Is(
     "TicketPendingTimeSet() - Set to new - Pending Time not set",
 );
 
-# check that searches with NewerDate in the future are not executed
-$Helper->FixedTimeAddSeconds( -60 * 60 );
-
 # Test CreateTime (future date)
 my $FutureTime = $TimeObject->SystemTime2TimeStamp(
     SystemTime => $TimeObject->SystemTime() + ( 60 * 60 ),
 );
-%TicketIDs  = $TicketObject->TicketSearch(
-    Result                    => 'HASH',
-    Limit                     => 100,
-    Search       => {
+%TicketIDs  = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
-                Field => 'CreateTime',
-                Value => $FutureTime,
+                Field    => 'CreateTime',
+                Value    => $FutureTime,
                 Operator => 'GTE',
             },
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->False(
     $TicketIDs{$TicketID},
@@ -2433,20 +2465,21 @@ $Self->False(
 );
 
 # Test ArticleCreateTime (future date)
-%TicketIDs  = $TicketObject->TicketSearch(
-    Result                     => 'HASH',
-    Limit                      => 100,
-    Search       => {
+%TicketIDs  = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
-                Field => 'ArticleCreateTime',
-                Value => $FutureTime,
+                Field    => 'ArticleCreateTime',
+                Value    => $FutureTime,
                 Operator => 'GTE',
             },
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->False(
     $TicketIDs{$TicketID},
@@ -2454,20 +2487,21 @@ $Self->False(
 );
 
 # Test CloseTime (future date)
-%TicketIDs = $TicketObject->TicketSearch(
-    Result                   => 'HASH',
-    Limit                    => 100,
-    Search       => {
+%TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
+    Result     => 'HASH',
+    Limit      => 100,
+    Search     => {
         AND => [
             {
-                Field => 'CloseTime',
-                Value => $FutureTime,
+                Field    => 'CloseTime',
+                Value    => $FutureTime,
                 Operator => 'GTE',
             },
         ]
     },
     UserID     => 1,
-    Permission => 'rw',
+    UserType   => 'Agent',
 );
 $Self->False(
     $TicketIDs{$TicketID},
@@ -2502,25 +2536,25 @@ for my $NewStateID (@NewStates) {
     );
 }
 
-my @TicketIDs = $TicketObject->TicketSearch(
+my @TicketIDs = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result       => 'LIST',
     Limit        => 100,
     Search       => {
         AND => [
             {
-                Field => 'TicketNumber',
-                Value => [ $Ticket{TicketNumber}, 'ABC' ],
+                Field    => 'TicketNumber',
+                Value    => [ $Ticket{TicketNumber}, 'ABC' ],
                 Operator => 'IN',
             },
             {
-                Field => 'StateType',
-                Value => 'New',
+                Field    => 'StateType',
+                Value    => 'New',
                 Operator => 'EQ',
             },
         ]
     },
     UserID       => 1,
-    Permission   => 'rw',
 );
 $Self->False(
     $TicketIDs[0],
@@ -2542,12 +2576,13 @@ for my $NewStateID (@NewStates) {
 # check response of ticket search for invalid timestamps
 for my $SearchParam (qw(ArticleCreateTime CreateTime PendingTime)) {
     for my $ParamOption (qw(LT GTE)) {
-        $TicketObject->TicketSearch(
+        $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
             Search       => {
                 AND => [
                     {
-                        Field => $SearchParam,
-                        Value => '2000-02-31 00:00:00',
+                        Field    => $SearchParam,
+                        Value    => '2000-02-31 00:00:00',
                         Operator => $ParamOption,
                     },
                 ]
@@ -2566,14 +2601,15 @@ for my $SearchParam (qw(ArticleCreateTime CreateTime PendingTime)) {
     }
 }
 
-# cleanup is done by RestoreDatabase but we need to delete the tickets to cleanup the filesystem too
-my @DeleteTicketList = $TicketObject->TicketSearch(
+# cleanup the filesystem
+my @DeleteTicketList = $Kernel::OM->Get('ObjectSearch')->Search(
+    ObjectType => 'Ticket',
     Result            => 'ARRAY',
     Search       => {
         AND => [
             {
-                Field => 'ContactID',
-                Value => $ContactID,
+                Field    => 'ContactID',
+                Value    => $ContactID,
                 Operator => 'EQ',
             },
         ]
@@ -2586,6 +2622,9 @@ for my $TicketID (@DeleteTicketList) {
         UserID   => 1,
     );
 }
+
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 

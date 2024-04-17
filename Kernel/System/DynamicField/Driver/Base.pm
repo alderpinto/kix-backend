@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -103,17 +103,14 @@ sub AllValuesDelete {
     return $Success;
 }
 
-sub HasBehavior {
+sub GetProperty {
     my ( $Self, %Param ) = @_;
 
     # return fail if Behaviors hash does not exists
-    return if !IsHashRefWithData( $Self->{Behaviors} );
+    return if !IsHashRefWithData( $Self->{Properties} );
 
-    # return success if the dynamic field has the expected behavior
-    return 1 if IsPositiveInteger( $Self->{Behaviors}->{ $Param{Behavior} } );
-
-    # otherwise return fail
-    return;
+    # return requested Property
+    return $Self->{Properties}->{ $Param{Property} };
 }
 
 sub HTMLDisplayValueRender {
@@ -132,6 +129,30 @@ sub DisplayKeyRender {
     my ( $Self, %Param ) = @_;
 
     return $Self->DisplayValueRender(%Param);
+}
+
+sub DFValueObjectReplace {
+    my ( $Self, %Param ) = @_;
+
+    return if ( !$Param{Placeholder} || !IsArrayRefWithData($Param{Value}) );
+
+    if (
+        IsHashRefWithData($Self->{ReferencePlaceholderParameter}) &&
+        $Self->{ReferencePlaceholderParameter}->{Prefix} &&
+        $Self->{ReferencePlaceholderParameter}->{ObjectType}
+    ) {
+        if ($Param{Placeholder} =~ m/_Object_(\d+)_(.+)/) {
+            if (($1 || $1 == 0) && $2 && $Param{Value}->[$1]) {
+                return $Kernel::OM->Get('TemplateGenerator')->ReplacePlaceHolder(
+                    %Param,
+                    Text        => "<KIX_$Self->{ReferencePlaceholderParameter}->{Prefix}\_$2>",
+                    ObjectType  => $Self->{ReferencePlaceholderParameter}->{ObjectType},
+                    ObjectID    => $Param{Value}->[$1]
+                );
+            }
+        }
+    }
+    return;
 }
 
 sub GetCacheDependencies {

@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2023 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-AGPL for license information (AGPL). If you
@@ -16,6 +16,8 @@ our $ObjectManagerDisabled = 1;
 use base qw(
     Kernel::System::HTMLToPDF::Render::Common
 );
+
+use Kernel::System::VariableCheck qw(:all);
 
 sub Run {
     my ($Self, %Param) = @_;
@@ -39,6 +41,20 @@ sub Run {
             Data => $Block
         );
 
+        if ( IsArrayRefWithData($Block->{Style}->{Class}) ) {
+            for my $Style ( @{$Block->{Style}->{Class}} ) {
+                next if ( !$Style->{Selector} || !$Style->{CSS} );
+
+                $LayoutObject->Block(
+                    Name => 'StyleClass',
+                    Data => {
+                        %{$Block},
+                        %{$Style}
+                    }
+                );
+            }
+        }
+
         $Css = $LayoutObject->Output(
             TemplateFile => 'HTMLToPDF/Text',
         );
@@ -52,11 +68,13 @@ sub Run {
                 String    => $Entry,
                 UserID    => $Param{UserID},
                 Count     => $Param{Count},
-                Translate => $Block->{Translate}
+                Translate => $Block->{Translate},
+                Object    => $Param{Object},
+                Datas     => $Datas
             );
 
             if ( !$Class ) {
-                $Class = $Result{Font};
+                $Class = $Result{Class};
             }
 
             my $TmpValue = $TemplateGeneratorObject->ReplacePlaceHolder(
@@ -80,11 +98,13 @@ sub Run {
             String    => $Block->{Value},
             UserID    => $Param{UserID},
             Count     => $Param{Count},
-            Translate => $Block->{Translate}
+            Translate => $Block->{Translate},
+            Object    => $Param{Object},
+            Datas     => $Datas
         );
 
         if ( !$Class ) {
-            $Class = $Result{Font};
+            $Class = $Result{Class};
         }
 
         $Value = $TemplateGeneratorObject->ReplacePlaceHolder(

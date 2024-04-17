@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -18,11 +18,6 @@ use vars (qw($Self));
 my $EventObject = $Kernel::OM->Get('Event');
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 my %EventList = $EventObject->EventList();
@@ -54,8 +49,6 @@ $Self->Is(
     undef,
     "EventListTicket() Article"
 );
-
-# cleanup is done by RestoreDatabase
 
 1;
 

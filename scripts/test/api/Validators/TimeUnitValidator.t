@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -18,19 +18,14 @@ use Kernel::API::Validator::TimeUnitValidator;
 my $ValidatorObject = Kernel::API::Validator::TimeUnitValidator->new();
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 my %ValidData = (
     '#01 integer' => '10',
     '#02 negative integer' => '-10',
     '#03 zero' => '0',
-    # '#04 float with dot' => '10.0',
-    # '#05 float with comma' => '10,0'
+#    '#04 float with dot' => '10.0',
+#    '#05 float with comma' => '10,0'
 );
 
 my %InvalidData = (
@@ -81,8 +76,6 @@ $Self->False(
     $Result->{Success},
     'Validate() - invalid attribute',
 );
-
-# cleanup is done by RestoreDatabase.
 
 1;
 

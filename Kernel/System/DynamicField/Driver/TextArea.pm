@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -17,10 +17,10 @@ use Kernel::System::VariableCheck qw(:all);
 
 use base qw(Kernel::System::DynamicField::Driver::BaseText);
 
-our @ObjectDependencies = (
-    'Config',
-    'DynamicFieldValue',
-    'Main',
+our @ObjectDependencies = qw(
+    Config
+    DynamicFieldValue
+    Main
 );
 
 =head1 NAME
@@ -56,13 +56,11 @@ sub new {
     # databases
     $Self->{MaxLength} = 3800;
 
-    # set field behaviors
-    $Self->{Behaviors} = {
-        'IsNotificationEventCondition' => 1,
-        'IsSortable'                   => 0,
-        'IsFiltrable'                  => 0,
-        'IsStatsCondition'             => 1,
-        'IsCustomerInterfaceCapable'   => 1,
+    # set field properties
+    $Self->{Properties} = {
+        'IsSearchable'    => 1,
+        'IsSortable'      => 1,
+        'SearchOperators' => ['EQ','NE','STARTSWITH','ENDSWITH','CONTAINS','LIKE']
     };
 
     # get the Dynamic Field Backend custom extensions
@@ -90,17 +88,28 @@ sub new {
             }
         }
 
-        # check if extension contains more behaviors
-        if ( IsHashRefWithData( $Extension->{Behaviors} ) ) {
+        # check if extension contains more properties
+        if ( IsHashRefWithData( $Extension->{Properties} ) ) {
 
-            %{ $Self->{Behaviors} } = (
-                %{ $Self->{Behaviors} },
-                %{ $Extension->{Behaviors} }
+            %{ $Self->{Properties} } = (
+                %{ $Self->{Properties} },
+                %{ $Extension->{Properties} }
             );
         }
     }
 
     return $Self;
+}
+
+sub HTMLDisplayValueRender {
+    my ( $Self, %Param ) = @_;
+
+    my $Result = $Self->DisplayValueRender(%Param);
+    if (IsHashRefWithData($Result) && $Result->{Value}) {
+        $Result->{Value} =~ s/(\r\n|\n\r|\n|\r)/<br>/g;
+    }
+
+    return $Result;
 }
 
 1;

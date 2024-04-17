@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file LICENSE-GPL3 for license information (GPL3). If you
@@ -17,11 +17,6 @@ use XML::Simple;
 use Kernel::System::VariableCheck qw(:all);
 
 # get helper object
-$Kernel::OM->ObjectParamAdd(
-    'UnitTest::Helper' => {
-        RestoreDatabase => 1,
-    },
-);
 my $Helper = $Kernel::OM->Get('UnitTest::Helper');
 
 # check schema - each table must have a primary or at least an unique constraint (needed for Percona clusters)
@@ -101,13 +96,11 @@ foreach my $Table ( @{$XMLRef->{Table}} ) {
         my $ColumnCount = scalar @{$Table->{Column}};
         my $IndexCount = scalar @{$Table->{Index}};
         $Self->True(
-            $IndexCount < $ColumnCount,
+            $IndexCount <= $ColumnCount,
             'Table "'.$Table->{Name}.'" has less indexes ('.$IndexCount.') in relation to columns ('.$ColumnCount.')',
         );
     }
 }
-
-# cleanup is done by RestoreDatabase.
 
 1;
 

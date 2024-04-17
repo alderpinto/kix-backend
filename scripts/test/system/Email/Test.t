@@ -1,5 +1,5 @@
 # --
-# Modified version of the work: Copyright (C) 2006-2022 c.a.p.e. IT GmbH, https://www.cape-it.de
+# Modified version of the work: Copyright (C) 2006-2024 KIX Service Software GmbH, https://www.kixdesk.com 
 # based on the original work of:
 # Copyright (C) 2001-2017 OTRS AG, https://otrs.com/
 # --
@@ -14,11 +14,20 @@ use utf8;
 
 use vars (qw($Self));
 
+# get helper object
+my $Helper = $Kernel::OM->Get('UnitTest::Helper');
+
+# begin transaction on database
+$Helper->BeginWork();
+
 # do not really send emails
 $Kernel::OM->Get('Config')->Set(
     Key   => 'SendmailModule',
     Value => 'Email::Test',
 );
+
+# get email object
+my $EmailObject = $Kernel::OM->Get('Email');
 
 # get test email backed object
 my $TestBackendObject = $Kernel::OM->Get('Email::Test');
@@ -34,9 +43,6 @@ $Self->IsDeeply(
     [],
     'Test backend empty after initial cleanup',
 );
-
-# get email object
-my $EmailObject = $Kernel::OM->Get('Email');
 
 for ( 1 .. 2 ) {
 
@@ -96,6 +102,9 @@ $Self->IsDeeply(
     [],
     'Test backend empty after final cleanup',
 );
+
+# rollback transaction on database
+$Helper->Rollback();
 
 1;
 
